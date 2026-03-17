@@ -16,10 +16,10 @@ bun run dev
 Try:
 
 ```text
-> list workflows
-> propose bus subscription platform
-> run proposal_delivery
-> schedule ai_news_daily "*/10 * * * *"
+> /list workflows
+> Create proposal for bus subscription platform
+> /run proposal_delivery
+> /schedule ai_news_daily "*/10 * * * *"
 ```
 
 Outputs are written to `./outputs/`.
@@ -37,9 +37,9 @@ This repo includes Mario Zechner's `pi-*` packages for multi-provider models + a
 From inside the HarunAI CLI:
 
 ```text
-> pi providers
-> pi models openai
-> ask "Create proposal for bus subscription platform and deliver it"
+> /pi providers
+> /pi models openai
+> Create proposal for bus subscription platform and deliver it
 ```
 
 `ask` requires the relevant API key in your environment (example: `OPENAI_API_KEY`).

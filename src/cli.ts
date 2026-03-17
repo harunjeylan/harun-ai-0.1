@@ -11,24 +11,27 @@ function printHelp() {
       "",
       chalk.bold("HarunAI CLI"),
       "",
+      "Modes:",
+      "  Chat: type normally (goes to Assistant Agent)",
+      "  Command: start with '/' (e.g. /list workflows)",
+      "",
       "Commands:",
-      "  help                               Show this help",
-      "  list agents|tools|workflows         List registry items",
-      "  run <workflowName>                 Run a workflow",
-      "  propose <topic>                    Create proposal (example workflow)",
-      "  schedule <workflowName> <cron>     Schedule a workflow (cron syntax)",
-      "  ask <text>                         Ask Assistant Agent (pi-agent-core)",
-      "  pi providers                       List pi-ai providers",
-      "  pi models <provider>               List pi-ai models for provider",
-      "  exit                               Quit",
+      "  /help                              Show this help",
+      "  /list agents|tools|workflows        List registry items",
+      "  /run <workflowName>                Run a workflow",
+      "  /propose <topic>                   Create proposal (runs a workflow via assistant)",
+      "  /schedule <workflowName> <cron>    Schedule a workflow (cron syntax)",
+      "  /pi providers                      List pi-ai providers",
+      "  /pi models <provider>              List pi-ai models for provider",
+      "  /exit                              Quit",
       "",
       "Examples:",
-      "  propose bus subscription platform",
-      "  run proposal_delivery",
-      '  schedule ai_news_daily "0 7 * * *"',
-      '  ask "Create proposal for bus subscription platform and deliver it"',
-      "  pi providers",
-      "  pi models openai",
+      "  Create proposal for bus subscription platform",
+      "  /list workflows",
+      "  /run proposal_delivery",
+      '  /schedule ai_news_daily "*/10 * * * *"',
+      "  /pi providers",
+      "  /pi models openai",
       "",
     ].join("\n"),
   );
@@ -52,8 +55,18 @@ rl.on("line", async (line) => {
   }
 
   try {
-    const [cmd, ...rest] = splitArgs(input);
-    if (!cmd) return;
+    if (!input.startsWith("/")) {
+      await app.assistant.prompt(input);
+      rl.prompt();
+      return;
+    }
+
+    const commandLine = input.slice(1);
+    const [cmd, ...rest] = splitArgs(commandLine);
+    if (!cmd) {
+      rl.prompt();
+      return;
+    }
 
     if (cmd === "help") {
       printHelp();
@@ -73,7 +86,7 @@ rl.on("line", async (line) => {
         stdout.write(app.registry.listTools().join("\n") + "\n");
       else if (what === "workflows")
         stdout.write(app.registry.listWorkflows().join("\n") + "\n");
-      else stdout.write("Usage: list agents|tools|workflows\n");
+      else stdout.write("Usage: /list agents|tools|workflows\n");
       rl.prompt();
       return;
     }
@@ -81,7 +94,7 @@ rl.on("line", async (line) => {
     if (cmd === "run") {
       const name = rest[0];
       if (!name) {
-        stdout.write("Usage: run <workflowName>\n");
+        stdout.write("Usage: /run <workflowName>\n");
         rl.prompt();
         return;
       }
@@ -93,7 +106,7 @@ rl.on("line", async (line) => {
     if (cmd === "propose") {
       const topic = rest.join(" ").trim();
       if (!topic) {
-        stdout.write("Usage: propose <topic>\n");
+        stdout.write("Usage: /propose <topic>\n");
         rl.prompt();
         return;
       }
@@ -108,7 +121,7 @@ rl.on("line", async (line) => {
       const workflowName = rest[0];
       const cron = rest.slice(1).join(" ").trim();
       if (!workflowName || !cron) {
-        stdout.write("Usage: schedule <workflowName> <cron>\n");
+        stdout.write("Usage: /schedule <workflowName> <cron>\n");
         rl.prompt();
         return;
       }
@@ -116,18 +129,6 @@ rl.on("line", async (line) => {
       stdout.write(
         chalk.green(`Scheduled ${workflowName} with cron: ${cron}\n`),
       );
-      rl.prompt();
-      return;
-    }
-
-    if (cmd === "ask") {
-      const text = rest.join(" ").trim();
-      if (!text) {
-        stdout.write("Usage: ask <text>\n");
-        rl.prompt();
-        return;
-      }
-      await app.assistant.prompt(text);
       rl.prompt();
       return;
     }
@@ -142,7 +143,7 @@ rl.on("line", async (line) => {
       if (sub === "models") {
         const provider = rest[1];
         if (!provider) {
-          stdout.write("Usage: pi models <provider>\n");
+          stdout.write("Usage: /pi models <provider>\n");
           rl.prompt();
           return;
         }
@@ -151,7 +152,7 @@ rl.on("line", async (line) => {
         return;
       }
       stdout.write(
-        "Usage: pi providers | pi models <provider>\n",
+        "Usage: /pi providers | /pi models <provider>\n",
       );
       rl.prompt();
       return;
