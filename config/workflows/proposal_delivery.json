@@ -1,0 +1,35 @@
+{
+  "name": "proposal_delivery",
+  "description": "Generate proposal, export PDF, send via Telegram.",
+  "steps": [
+    {
+      "id": "generate",
+      "agent": "proposal_agent",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "topic": {
+            "type": "string",
+            "description": "The proposal topic or title"
+          }
+        },
+        "required": ["topic"]
+      },
+      "output_ref": "result"
+    },
+    {
+      "id": "distribute",
+      "agent": "distribution_agent",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "description": "The message to send via Telegram"
+          }
+        },
+        "required": ["message"]
+      }
+    }
+  ]
+}

@@ -19,11 +19,14 @@ import {
   editorTheme,
   markdownTheme,
 } from "./theme.js";
+import type { Registry } from "../core/registry.js";
+import type { Assistant } from "../agents/assistant.js";
 
 export interface ChatMessage {
-  role: "user" | "assistant" | "system";
+  role: "user" | "assistant" | "system" | "tool" | "delegation";
   content: string;
-  thinking?: string;
+  toolName?: string;
+  agentName?: string;
   timestamp: number;
 }
 
@@ -38,8 +41,11 @@ export class ChatComponent implements Component, Focusable {
   private messages: ChatMessage[] = [];
   private streamingContent = "";
   private streamingThinking = "";
+  private currentToolCall: string | null = null;
 
   private tui: TuiType;
+  private registry: Registry;
+  private assistant?: Assistant;
 
   private _focused = false;
   get focused(): boolean {
@@ -57,9 +63,13 @@ export class ChatComponent implements Component, Focusable {
 
   constructor(
     tui: TuiType,
+    registry: Registry,
     private tuiTheme: ChatTheme = chatTheme,
+    assistant?: Assistant,
   ) {
     this.tui = tui;
+    this.registry = registry;
+    this.assistant = assistant;
     this.container = new Container();
 
     this.messagesBox = new Box(1, 0, (text) => chalk.bgGray.white(text));
@@ -76,24 +86,40 @@ export class ChatComponent implements Component, Focusable {
           { name: "help", description: "Show help" },
           { name: "clear", description: "Clear chat history" },
           { name: "exit", description: "Exit the application" },
+          { name: "tools", description: "List all tools" },
+          { name: "agents", description: "List all agents" },
+          { name: "workflows", description: "List all workflows" },
+          { name: "inspect", description: "Inspect tool/agent/workflow" },
         ],
         process.cwd(),
       ),
     );
     this.container.addChild(this.inputField);
 
-    this.hint = new Markdown(
-      "Hint: `Tab` autocomplete · `Alt+Enter` new line · `/help` commands",
-      1,
-      0,
-      markdownTheme,
-      { color: (t) => chalk.gray(t) },
-    );
+    this.hint = this.createHint();
     this.container.addChild(this.hint);
 
     this.addSystemMessage(
-      "Welcome to HarunAI! Type a message or /help for commands.",
+      "Welcome to HarunAI! Press Tab to switch agents. Use tools for file operations.",
     );
+  }
+
+  private createHint(): Markdown {
+    const agentName = this.assistant?.getActiveAgent() ?? "assistant";
+    const hintText = `Agent: ${agentName} | Tab: switch | Alt+Enter: new line | /help: commands`;
+    return new Markdown(hintText, 1, 0, markdownTheme, {
+      color: (t) => chalk.gray(t),
+    });
+  }
+
+  private updateHint(): void {
+    const index = this.container.children.indexOf(this.hint);
+    if (index >= 0) {
+      this.container.removeChild(this.hint);
+    }
+    this.hint = this.createHint();
+    this.container.addChild(this.hint);
+    this.requestRender();
   }
 
   private handleSubmit(text: string) {
@@ -110,7 +136,11 @@ export class ChatComponent implements Component, Focusable {
           "Commands:\n" +
             "/help - Show this help\n" +
             "/clear - Clear chat history\n" +
-            "/exit - Exit the application",
+            "/exit - Exit the application\n" +
+            "/tools - List all tools\n" +
+            "/agents - List all agents\n" +
+            "/workflows - List all workflows\n" +
+            "/inspect <name> - Show details of a tool/agent/workflow",
         );
         this.requestRender();
         return;
@@ -121,6 +151,94 @@ export class ChatComponent implements Component, Focusable {
           this.messagesBox.removeChild(this.messagesBox.children[0]);
         }
         this.addSystemMessage("Chat history cleared.");
+        this.requestRender();
+        return;
+      }
+      if (trimmed === "/tools") {
+        const tools = this.registry.listTools();
+        let output = "**Available tools:**\n\n";
+        for (const name of tools) {
+          const spec = this.registry.getTool(name);
+          output += `- **${name}**: ${spec?.description ?? "No description"}\n`;
+        }
+        this.addSystemMessage(output);
+        this.requestRender();
+        return;
+      }
+      if (trimmed === "/agents") {
+        const agents = this.registry.listAgents();
+        let output = "**Available agents:**\n\n";
+        for (const name of agents) {
+          const spec = this.registry.getAgent(name);
+          output += `- **${name}**: ${spec?.description ?? "No description"}\n`;
+          if (spec?.tools?.length) {
+            output += `  - tools: ${spec.tools.join(", ")}\n`;
+          }
+        }
+        this.addSystemMessage(output);
+        this.requestRender();
+        return;
+      }
+      if (trimmed === "/workflows") {
+        const workflows = this.registry.listWorkflows();
+        let output = "**Available workflows:**\n\n";
+        for (const name of workflows) {
+          const spec = this.registry.getWorkflow(name);
+          output += `- **${name}**: ${spec?.description ?? "No description"}\n`;
+          if (spec?.steps?.length) {
+            output += `  - steps: ${spec.steps.map((s) => s.id).join(" → ")}\n`;
+          }
+        }
+        this.addSystemMessage(output);
+        this.requestRender();
+        return;
+      }
+      if (trimmed.startsWith("/inspect ")) {
+        const name = trimmed.slice(8).trim();
+        const tool = this.registry.getTool(name);
+        if (tool) {
+          let output = `**Tool: ${tool.name}**\n\n`;
+          if (tool.description) output += `${tool.description}\n\n`;
+          if (tool.input_schema) {
+            output += `**Input Schema:**\n\`\`\`json\n${JSON.stringify(tool.input_schema, null, 2)}\n\`\`\`\n`;
+          }
+          this.addSystemMessage(output);
+          this.requestRender();
+          return;
+        }
+        const agent = this.registry.getAgent(name);
+        if (agent) {
+          let output = `**Agent: ${agent.name}**\n\n`;
+          if (agent.description) output += `${agent.description}\n\n`;
+          if (agent.tools?.length) {
+            output += `**Tools:** ${agent.tools.join(", ")}\n`;
+          }
+          if (agent.system_prompt) {
+            output += `\n**System Prompt:**\n${agent.system_prompt}\n`;
+          }
+          this.addSystemMessage(output);
+          this.requestRender();
+          return;
+        }
+        const workflow = this.registry.getWorkflow(name);
+        if (workflow) {
+          let output = `**Workflow: ${workflow.name}**\n\n`;
+          if (workflow.description) output += `${workflow.description}\n\n`;
+          output += "**Steps:**\n";
+          for (const step of workflow.steps) {
+            output += `- ${step.id}: ${step.agent}\n`;
+            if (step.input_schema && Object.keys(step.input_schema).length) {
+              output += `  - input_schema: ${JSON.stringify(step.input_schema)}\n`;
+            }
+            if (step.output_ref) {
+              output += `  - output_ref: ${step.output_ref}\n`;
+            }
+          }
+          this.addSystemMessage(output);
+          this.requestRender();
+          return;
+        }
+        this.addSystemMessage(`Not found: ${name}`);
         this.requestRender();
         return;
       }
@@ -141,14 +259,13 @@ export class ChatComponent implements Component, Focusable {
     this.requestRender();
   }
 
-  addAssistantMessage(content: string, thinking?: string) {
+  addAssistantMessage(content: string) {
     this.messages.push({
       role: "assistant",
       content,
-      thinking,
       timestamp: Date.now(),
     });
-    this.addMessageToBox("assistant", content, thinking);
+    this.addMessageToBox("assistant", content);
     this.requestRender();
   }
 
@@ -161,17 +278,62 @@ export class ChatComponent implements Component, Focusable {
     this.requestRender();
   }
 
+  addToolCall(toolName: string, params: string) {
+    this.currentToolCall = toolName;
+    this.messages.push({
+      role: "tool",
+      content: `${toolName}(${params})`,
+      toolName,
+      timestamp: Date.now(),
+    });
+
+    const toolMd = new Markdown(
+      `🔧 **Tool:** ${toolName}\n\`\`\`\n${params}\n\`\`\``,
+      1,
+      2,
+      markdownTheme,
+      { color: (t) => this.tuiTheme.toolCall(t) },
+    );
+    this.messagesBox.addChild(toolMd);
+    this.requestRender();
+  }
+
+  addToolResult(result: string) {
+    const resultMd = new Markdown(`└── ✅ ${result}`, 1, 4, markdownTheme, {
+      color: (t) => this.tuiTheme.toolResult(t),
+    });
+    this.messagesBox.addChild(resultMd);
+    this.requestRender();
+  }
+
+  addDelegation(agentName: string, task: string) {
+    this.messages.push({
+      role: "delegation",
+      content: `→ ${agentName}: ${task}`,
+      agentName,
+      timestamp: Date.now(),
+    });
+
+    const delegMd = new Markdown(
+      `🤖 **Delegating to:** ${agentName}\n\`\`\`\n${task}\n\`\`\``,
+      1,
+      2,
+      markdownTheme,
+      { color: (t) => this.tuiTheme.delegation(t) },
+    );
+    this.messagesBox.addChild(delegMd);
+    this.requestRender();
+  }
+
   startLoading() {
     this.inputField.disableSubmit = true;
     this.loadingLoader = new CancellableLoader(
       null as any,
       (s) => chalk.cyan(s),
       (s) => chalk.gray(s),
-      "Thinking...",
+      "🤔 Thinking...",
     );
-    this.loadingLoader.onAbort = () => {
-      // TUI will stop the loader when abort is requested.
-    };
+    this.loadingLoader.onAbort = () => {};
     this.messagesBox.addChild(this.loadingLoader);
     this.requestRender();
   }
@@ -219,23 +381,21 @@ export class ChatComponent implements Component, Focusable {
   finishStreaming() {
     this.streamingContent = "";
     this.streamingThinking = "";
+    this.currentToolCall = null;
     this.requestRender();
   }
 
-  private addMessageToBox(
-    role: "user" | "assistant",
-    content: string,
-    thinking?: string,
-  ) {
-    const prefix = role === "user" ? "You: " : "Assistant: ";
-    let displayContent = content;
+  private addMessageToBox(role: "user" | "assistant", content: string) {
+    const colorFn =
+      role === "user"
+        ? (t: string) => chalk.bgBlue.white(t)
+        : (t: string) => chalk.bgBlack.white(t);
 
-    if (thinking) {
-      displayContent = `<thinking>${thinking}</thinking>\n\n${content}`;
-    }
+    const prefix = role === "user" ? "👤 You: " : "🤖 Assistant: ";
+    const displayContent = prefix + content;
 
     const md = new Markdown(displayContent, 1, 0, markdownTheme, {
-      color: (t) => chalk.white(t),
+      color: colorFn,
     });
     this.messagesBox.addChild(md);
   }
@@ -254,6 +414,17 @@ export class ChatComponent implements Component, Focusable {
       this.onExit?.();
       return;
     }
+
+    if (matchesKey(data, Key.tab) && this.assistant) {
+      const newAgent = this.assistant.cycleActiveAgent();
+      const agents = this.assistant.getAvailableAgents();
+      this.addSystemMessage(
+        chalk.cyan(`🤖 Switched to agent: ${newAgent} (${agents.join(", ")})`),
+      );
+      this.updateHint();
+      return;
+    }
+
     this.inputField.handleInput?.(data);
   }
 

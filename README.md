@@ -49,9 +49,9 @@ The pi agent runtime is now part of the main system path:
 Set env vars then run `bun run dev`:
 
 ```bash
-export HARUNAI_PROVIDER=openrouter
+export HARUNHARUNAI_PROVIDER=openrouter
 export HARUNAI_MODEL=deepseek/deepseek-chat-v3.1
-export OPENROUTER_API_KEY="..."
+export HARUNAI_API_KEY="..."
 ```
 
 Optional (recommended by OpenRouter):
@@ -514,3 +514,4 @@ HarunAI evolves into:
 HarunAI is:
 
 > **A CLI-based, multi-agent, workflow-driven AI system that automates professional operations and evolves dynamically through agent and workflow creation.**
+

@@ -9,48 +9,87 @@ export async function runTui(): Promise<void> {
 
   const app = await createApp();
 
-  if (!app.assistant.hasApiKey()) {
-    console.log(
+  const chat = new ChatComponent(tui, app.registry, undefined, app.assistant);
+  const hasApiKey = app.assistant.hasApiKey();
+  if (!hasApiKey) {
+    chat.addSystemMessage(
       chalk.red(
-        `[assistant] Missing API key for provider "${app.assistant.provider}". Set env var and retry.\n`,
-      ),
+        `Missing API key for provider "${app.assistant.provider}". Messages will not be sent until you set it in providers/${app.assistant.provider}.json and restart.`,
+      ) +
+        "\n\n" +
+        chalk.gray(
+          "Example: { \"apiKey\": \"...\" }",
+        ),
     );
-    console.log(
-      chalk.gray(
-        "See `pi-ai.md` for provider env vars (e.g. OPENROUTER_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY).\n",
-      ),
-    );
-    process.exit(1);
   }
-
-  const chat = new ChatComponent(tui);
 
   setTimeout(() => {
     chat.focused = true;
   }, 100);
 
   chat.onMessage = async (text: string) => {
+    if (!hasApiKey) {
+      chat.addSystemMessage(
+        chalk.red(
+          `Cannot send: missing API key for provider "${app.assistant.provider}".`,
+        ),
+      );
+      return;
+    }
     chat.startLoading();
 
+    let sawDelta = false;
     const unsubscribe = app.assistant.subscribe((e) => {
-      if (e.type === "message_update") {
-        const ev = e.assistantMessageEvent;
+      const anyEvent = e as any;
+
+      if (anyEvent?.type === "message_update") {
+        const ev = anyEvent.assistantMessageEvent;
         if (ev.type === "text_delta") {
+          sawDelta = true;
           chat.appendStreamingContent(ev.delta);
         }
         if (ev.type === "thinking_delta") {
+          sawDelta = true;
           chat.appendStreamingThinking(ev.delta);
         }
+        if (ev.type === "tool_call") {
+          sawDelta = true;
+          const toolName = ev.toolCall?.name ?? "unknown";
+          const params = JSON.stringify(ev.toolCall?.parameters ?? {}, null, 2);
+          chat.addToolCall(toolName, params);
+        }
+        if (ev.type === "tool_result") {
+          sawDelta = true;
+          const result = typeof ev.result?.content === "string" 
+            ? ev.result.content 
+            : JSON.stringify(ev.result?.content ?? "Done");
+          chat.addToolResult(result.slice(0, 200));
+        }
         if (ev.type === "error") {
+          sawDelta = true;
           chat.appendStreamingContent(
-            `\n\nError: ${ev.error.errorMessage ?? "Unknown error"}\n`,
+            `\n\nError: ${ev.error?.errorMessage ?? "Unknown error"}\n`,
           );
         }
+      }
+
+      if (
+        anyEvent?.type === "error" ||
+        anyEvent?.type === "agent_error" ||
+        anyEvent?.type === "turn_error"
+      ) {
+        sawDelta = true;
+        const msg =
+          anyEvent?.error?.errorMessage ??
+          anyEvent?.error?.message ??
+          anyEvent?.message ??
+          "Unknown error";
+        chat.appendStreamingContent(`\n\nError: ${msg}\n`);
       }
     });
 
     try {
-      const timeoutMs = Number(process.env.HARUNAI_TIMEOUT_MS ?? "45000");
+      const timeoutMs = 45000;
       const timeout = setTimeout(() => {
         chat.appendStreamingContent(
           `\n\n${chalk.red(`Timed out after ${timeoutMs}ms. Check network/API key and try again.`)}\n`,
@@ -61,6 +100,17 @@ export async function runTui(): Promise<void> {
       try {
         await app.assistant.prompt(text);
         await app.assistant.waitForIdle();
+
+        if (!sawDelta) {
+          const finalText = app.assistant.getLastAssistantText();
+          if (finalText && finalText.trim().length > 0) {
+            chat.addAssistantMessage(finalText);
+          } else {
+            chat.addSystemMessage(
+              chalk.yellow("No output received from the assistant."),
+            );
+          }
+        }
       } finally {
         clearTimeout(timeout);
       }
@@ -70,6 +120,7 @@ export async function runTui(): Promise<void> {
       );
     } finally {
       unsubscribe();
+      chat.finishStreaming();
       chat.stopLoading();
     }
   };

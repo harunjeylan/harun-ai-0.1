@@ -1,0 +1,9 @@
+{
+  "agents": {
+    "assistant": { "provider": "openrouter", "modelId": "deepseek/deepseek-chat-v3.1" },
+    "planner": { "provider": "openrouter", "modelId": "deepseek/deepseek-chat-v3.1" },
+    "proposal_agent": { "provider": "openrouter", "modelId": "deepseek/deepseek-chat-v3.1" },
+    "distribution_agent": { "provider": "openrouter", "modelId": "deepseek/deepseek-chat-v3.1" }
+  }
+}
+

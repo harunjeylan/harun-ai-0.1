@@ -1,22 +1,31 @@
 import { z } from "zod";
 
+export const AgentTypeSchema = z.enum(["assistant", "planner", "worker"]);
+export type AgentType = z.infer<typeof AgentTypeSchema>;
+
 export const ToolSpecSchema = z.object({
   name: z.string(),
   description: z.string().optional(),
+  input_schema: z.record(z.unknown()).optional(),
 });
 export type ToolSpec = z.infer<typeof ToolSpecSchema>;
 
 export const AgentSpecSchema = z.object({
   name: z.string(),
+  type: AgentTypeSchema.default("worker"),
   description: z.string().optional(),
   tools: z.array(z.string()).default([]),
+  system_prompt: z.string().optional(),
 });
 export type AgentSpec = z.infer<typeof AgentSpecSchema>;
 
 export const WorkflowStepSchema = z.object({
   id: z.string(),
-  tool: z.string(),
+  agent: z.string(),
+  mode: z.enum(["sequential", "parallel"]).default("sequential"),
+  input_schema: z.record(z.unknown()).optional(),
   input: z.record(z.unknown()).default({}),
+  output_ref: z.string().optional(),
 });
 export type WorkflowStep = z.infer<typeof WorkflowStepSchema>;
 
@@ -56,8 +65,31 @@ export class Registry {
     return this.workflows.get(name);
   }
 
+  getAllAgents(): AgentSpec[] {
+    return [...this.agents.values()];
+  }
+
   listAgents(): string[] {
     return [...this.agents.keys()].sort();
+  }
+
+  listAgentsByType(type: AgentType): string[] {
+    return [...this.agents.values()]
+      .filter((a) => a.type === type)
+      .map((a) => a.name)
+      .sort();
+  }
+
+  getAssistant(): AgentSpec | undefined {
+    return [...this.agents.values()].find((a) => a.type === "assistant");
+  }
+
+  getPlanner(): AgentSpec | undefined {
+    return [...this.agents.values()].find((a) => a.type === "planner");
+  }
+
+  getAllWorkflows(): WorkflowSpec[] {
+    return [...this.workflows.values()];
   }
 
   listTools(): string[] {

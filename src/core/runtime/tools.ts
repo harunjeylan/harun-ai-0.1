@@ -1,15 +1,28 @@
-import { createTools } from "../../tools/index.js";
+import { createTools } from "../tools/index.js";
 import type { Registry } from "../registry.js";
+import type { Planner } from "../agents/planner.js";
 
 export type ToolInvokeInput = Record<string, unknown>;
-export type ToolHandler = (input: ToolInvokeInput) => Promise<void>;
-
-export type ToolRuntime = {
-  invoke: (toolName: string, input: ToolInvokeInput) => Promise<void>;
+export type ToolDeps = {
+  planner: Planner;
+  registry: Registry;
 };
 
-export function createToolRuntime(registry: Registry): ToolRuntime {
-  const handlers = createTools();
+export type ToolHandler = (
+  input: ToolInvokeInput,
+  deps: ToolDeps,
+) => Promise<unknown>;
+
+export type ToolRuntime = {
+  invoke: (toolName: string, input: ToolInvokeInput) => Promise<unknown>;
+};
+
+export function createToolRuntime(
+  registry: Registry,
+  deps: { planner: Planner },
+): ToolRuntime {
+  const toolDeps: ToolDeps = { planner: deps.planner, registry };
+  const handlers = createTools(toolDeps);
 
   return {
     async invoke(toolName, input) {
@@ -17,7 +30,7 @@ export function createToolRuntime(registry: Registry): ToolRuntime {
       if (!spec) throw new Error(`Tool not registered: ${toolName}`);
       const handler = handlers[toolName];
       if (!handler) throw new Error(`Tool handler missing: ${toolName}`);
-      await handler(input);
+      return await handler(input, toolDeps);
     },
   };
 }

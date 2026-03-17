@@ -8,16 +8,22 @@ export interface ChatTheme {
   prompt: (text: string) => string;
   error: (text: string) => string;
   thinking: (text: string) => string;
+  toolCall: (text: string) => string;
+  toolResult: (text: string) => string;
+  delegation: (text: string) => string;
 }
 
 export const chatTheme: ChatTheme = {
   userMessage: (text) => chalk.bgBlue.white(text),
-  assistantMessage: (text) => chalk.bgGray.white(text),
+  assistantMessage: (text) => chalk.bgBlack.white(text),
   systemMessage: (text) => chalk.gray(text),
   input: (text) => chalk.white(text),
   prompt: (text) => chalk.cyan.bold(text),
   error: (text) => chalk.red(text),
-  thinking: (text) => chalk.gray.italic(text),
+  thinking: (text) => chalk.yellow.italic(text),
+  toolCall: (text) => chalk.cyan(text),
+  toolResult: (text) => chalk.green(text),
+  delegation: (text) => chalk.magenta(text),
 };
 
 export const editorTheme = {

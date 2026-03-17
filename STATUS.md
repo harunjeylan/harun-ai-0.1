@@ -6,7 +6,7 @@
 
 ### Current State (What works)
 - **TUI entrypoint + CLI bin**: `harunai` launches the terminal UI (`src/main.ts` + `src/tui/`).
-- **Assistant orchestration**: Provider/model resolved via env (`HARUNAI_PROVIDER`, `HARUNAI_MODEL`) with API-key detection and better runtime error messaging.
+- **Assistant orchestration**: Provider/model resolved via env (`HARUNHARUNAI_PROVIDER`, `HARUNAI_MODEL`) with API-key detection and better runtime error messaging.
 - **Tool/runtime wiring**: Tools are registered through a runtime layer and exposed to the agent (`write_markdown`, `render_template_markdown`, `render_pdf`, `send_telegram`).
 - **Artifact outputs**: Generated files land in `outputs/` and latest artifacts are tracked for follow-on steps.
 
