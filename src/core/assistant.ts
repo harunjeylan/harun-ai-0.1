@@ -1,6 +1,6 @@
 import chalk from "chalk";
 import { Agent, type AgentTool } from "@mariozechner/pi-agent-core";
-import { Type, getModel } from "@mariozechner/pi-ai";
+import { Type, getModel, type Model } from "@mariozechner/pi-ai";
 import type { Registry } from "./registry.js";
 import type { ToolRuntime } from "./runtime/tools.js";
 import type { WorkflowEngine } from "./workflow/engine.js";
@@ -17,9 +17,11 @@ export class Assistant {
   ) {
     this.agent = new Agent();
 
+    this.agent.getApiKey = (provider) => getApiKeyForProvider(provider);
+
     const provider = process.env.HARUNAI_PROVIDER ?? "openai";
     const modelId = process.env.HARUNAI_MODEL ?? "gpt-4.1-mini";
-    this.agent.setModel(getModel(provider as never, modelId as never));
+    this.agent.setModel(resolveModel(provider, modelId));
 
     this.agent.setSystemPrompt(
       [
@@ -122,3 +124,42 @@ export class Assistant {
   }
 }
 
+function resolveModel(provider: string, modelId: string): Model<any> {
+  if (provider === "openrouter") return createOpenRouterModel(modelId);
+  return getModel(provider as never, modelId as never);
+}
+
+function createOpenRouterModel(modelId: string): Model<"openai-completions"> {
+  const baseUrl = process.env.OPENROUTER_BASE_URL ?? "https://openrouter.ai/api/v1";
+  const headers: Record<string, string> = {};
+
+  if (process.env.OPENROUTER_HTTP_REFERER) headers["HTTP-Referer"] = process.env.OPENROUTER_HTTP_REFERER;
+  if (process.env.OPENROUTER_X_TITLE) headers["X-Title"] = process.env.OPENROUTER_X_TITLE;
+
+  return {
+    id: modelId,
+    name: modelId,
+    api: "openai-completions",
+    provider: "openrouter",
+    baseUrl,
+    reasoning: false,
+    input: ["text"],
+    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+    contextWindow: 32_768,
+    maxTokens: 8_192,
+    headers: Object.keys(headers).length > 0 ? headers : undefined,
+    compat: {
+      openRouterRouting: {
+        // Let OpenRouter decide unless user pins providers.
+      },
+    },
+  };
+}
+
+function getApiKeyForProvider(provider: string): string | undefined {
+  if (provider === "openrouter") return process.env.OPENROUTER_API_KEY;
+  if (provider === "openai") return process.env.OPENAI_API_KEY;
+  if (provider === "anthropic") return process.env.ANTHROPIC_API_KEY;
+  if (provider === "google") return process.env.GOOGLE_API_KEY;
+  return undefined;
+}
