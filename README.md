@@ -4,6 +4,8 @@
 
 ---
 
+**Project status**: see `STATUS.md`.
+
 ## Quickstart (MVP)
 
 Prereqs: Bun (recommended) + Node.js (for `tsc` typecheck).
@@ -14,13 +16,12 @@ cp .env.example .env
 bun run dev
 ```
 
-Try:
+The app starts in a terminal UI (TUI). In the input box, you can:
 
 ```text
-> /list workflows
-> Create proposal for bus subscription platform
-> /run proposal_delivery
-> /schedule ai_news_daily "*/10 * * * *"
+Type a message normally to chat with the assistant
+Use /help to see TUI commands
+Use /exit to quit
 ```
 
 Outputs are written to `./outputs/`.
@@ -35,21 +36,13 @@ This repo includes Mario Zechner's `pi-*` packages for multi-provider models + a
 - `@mariozechner/pi-mom` (binary: `mom`)
 - `@mariozechner/pi-tui` (terminal UI)
 
-From inside the HarunAI CLI:
-
-```text
-> /pi providers
-> /pi models openai
-> Create proposal for bus subscription platform and deliver it
-```
-
 `ask` requires the relevant API key in your environment (example: `OPENAI_API_KEY`).
 
 ### Integration Note
 
 The pi agent runtime is now part of the main system path:
 
-`CLI → Assistant Agent (pi-agent-core) → run_workflow/tools → outputs`
+`TUI → Assistant Agent (pi-agent-core) → run_workflow/tools → outputs`
 
 ## OpenRouter + DeepSeek (test)
 

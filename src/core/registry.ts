@@ -68,4 +68,3 @@ export class Registry {
     return [...this.workflows.keys()].sort();
   }
 }
-

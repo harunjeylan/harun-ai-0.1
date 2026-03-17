@@ -16,7 +16,9 @@ export class Scheduler {
     const timer = setInterval(() => {
       this.workflowEngine
         .runByName(workflowName, { input: {} })
-        .catch((err) => process.stderr.write(`Scheduled run error: ${String(err)}\n`));
+        .catch((err) =>
+          process.stderr.write(`Scheduled run error: ${String(err)}\n`),
+        );
     }, intervalMs);
     this.jobs.push({ workflowName, cron, timer });
   }
@@ -32,10 +34,10 @@ function cronToIntervalMs(cron: string): number {
   const m = cron.trim().match(/^\*\/(\d+)\s+\*\s+\*\s+\*\s+\*$/);
   if (m) {
     const minutes = Number(m[1]);
-    if (!Number.isFinite(minutes) || minutes <= 0) throw new Error(`Invalid cron interval: ${cron}`);
+    if (!Number.isFinite(minutes) || minutes <= 0)
+      throw new Error(`Invalid cron interval: ${cron}`);
     return minutes * 60_000;
   }
   // If user provides real 5-field cron (like "0 7 * * *"), this stub won't honor it precisely.
   return 60 * 60_000;
 }
-

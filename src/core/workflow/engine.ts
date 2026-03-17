@@ -27,4 +27,3 @@ export class WorkflowEngine {
     process.stdout.write(chalk.green(`✓ Done: ${spec.name}\n\n`));
   }
 }
-

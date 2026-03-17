@@ -1,5 +1,5 @@
-import type { Registry } from "../registry.js";
 import { createTools } from "../../tools/index.js";
+import type { Registry } from "../registry.js";
 
 export type ToolInvokeInput = Record<string, unknown>;
 export type ToolHandler = (input: ToolInvokeInput) => Promise<void>;
@@ -21,4 +21,3 @@ export function createToolRuntime(registry: Registry): ToolRuntime {
     },
   };
 }
-

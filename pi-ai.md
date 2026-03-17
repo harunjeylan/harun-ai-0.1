@@ -1194,9 +1194,9 @@ Update `src/core/model-resolver.ts`:
 
 - Add a default model ID for the provider in `DEFAULT_MODELS`
 
-Update `src/cli/args.ts`:
+Update help text:
 
-- Add environment variable documentation in the help text
+- Add environment variable documentation in the app help UI
 
 Update `README.md`:
 

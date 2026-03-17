@@ -5,12 +5,13 @@
   "type": "module",
   "description": "Personal AI Operations System (CLI, multi-agent, workflow-driven).",
   "bin": {
-    "harunai": "./src/cli.ts"
+    "harunai": "./src/main.ts"
   },
   "scripts": {
-    "dev": "bun run src/cli.ts",
-    "build": "bun build src/cli.ts --outdir dist --target bun",
-    "start": "bun run dist/cli.js",
+    "dev": "bun run src/main.ts",
+    "tui": "bun run src/main.ts",
+    "build": "bun build src/main.ts --outdir dist --target bun",
+    "start": "bun run dist/main.js",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
@@ -21,6 +22,7 @@
     "@mariozechner/pi-tui": "^0.58.4",
     "chalk": "^5.4.1",
     "dotenv": "^17.3.1",
+    "pdf-lib": "^1.17.1",
     "zod": "^3.25.76"
   },
   "devDependencies": {
