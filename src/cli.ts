@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+import "dotenv/config";
 import { stdin, stdout } from "node:process";
 import { createInterface } from "node:readline";
 import chalk from "chalk";
