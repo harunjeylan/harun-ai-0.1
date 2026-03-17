@@ -24,6 +24,26 @@ Try:
 
 Outputs are written to `./outputs/`.
 
+## Agentic Toolkit (pi-*)
+
+This repo includes Mario Zechner's `pi-*` packages for multi-provider models + agent runtime:
+
+- `@mariozechner/pi-ai` (providers + model registry)
+- `@mariozechner/pi-agent-core` (agent runtime + tool calling)
+- `@mariozechner/pi-coding-agent` (binary: `pi`)
+- `@mariozechner/pi-mom` (binary: `mom`)
+- `@mariozechner/pi-tui` (terminal UI)
+
+From inside the HarunAI CLI:
+
+```text
+> pi providers
+> pi models openai
+> pi chat openai gpt-4.1-mini "Say hi"
+```
+
+`pi chat` requires the relevant API key in your environment (example: `OPENAI_API_KEY`).
+
 ## 1. Vision
 
 HarunAI is a **CLI-based personal AI system** designed to automate and enhance professional daily operations for a system engineer.

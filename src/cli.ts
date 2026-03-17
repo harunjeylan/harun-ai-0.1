@@ -3,6 +3,7 @@ import { stdin, stdout } from "node:process";
 import { createInterface } from "node:readline";
 import chalk from "chalk";
 import { createApp } from "./core/app.js";
+import { listPiModels, listPiProviders, runPiChat } from "./toolkit/pi.js";
 
 function printHelp() {
   stdout.write(
@@ -16,12 +17,18 @@ function printHelp() {
       "  run <workflowName>                 Run a workflow",
       "  propose <topic>                    Create proposal (example workflow)",
       "  schedule <workflowName> <cron>     Schedule a workflow (cron syntax)",
+      "  pi providers                       List pi-ai providers",
+      "  pi models <provider>               List pi-ai models for provider",
+      "  pi chat <provider> <model> <text>  Chat via pi-agent-core (needs API key)",
       "  exit                               Quit",
       "",
       "Examples:",
       "  propose bus subscription platform",
       "  run proposal_delivery",
       '  schedule ai_news_daily "0 7 * * *"',
+      "  pi providers",
+      "  pi models openai",
+      '  pi chat openai gpt-4.1-mini "Say hi"',
       "",
     ].join("\n"),
   );
@@ -108,6 +115,45 @@ rl.on("line", async (line) => {
       app.scheduler.schedule(workflowName, cron);
       stdout.write(
         chalk.green(`Scheduled ${workflowName} with cron: ${cron}\n`),
+      );
+      rl.prompt();
+      return;
+    }
+
+    if (cmd === "pi") {
+      const sub = rest[0];
+      if (sub === "providers") {
+        stdout.write(listPiProviders().join("\n") + "\n");
+        rl.prompt();
+        return;
+      }
+      if (sub === "models") {
+        const provider = rest[1];
+        if (!provider) {
+          stdout.write("Usage: pi models <provider>\n");
+          rl.prompt();
+          return;
+        }
+        stdout.write(listPiModels(provider).join("\n") + "\n");
+        rl.prompt();
+        return;
+      }
+      if (sub === "chat") {
+        const provider = rest[1];
+        const modelId = rest[2];
+        const text = rest.slice(3).join(" ").trim();
+        if (!provider || !modelId || !text) {
+          stdout.write("Usage: pi chat <provider> <model> <text>\n");
+          rl.prompt();
+          return;
+        }
+        await runPiChat({ provider, modelId, text, registry: app.registry });
+        rl.prompt();
+        return;
+      }
+
+      stdout.write(
+        "Usage: pi providers | pi models <provider> | pi chat <provider> <model> <text>\n",
       );
       rl.prompt();
       return;
