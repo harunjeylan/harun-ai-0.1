@@ -39,10 +39,16 @@ From inside the HarunAI CLI:
 ```text
 > pi providers
 > pi models openai
-> pi chat openai gpt-4.1-mini "Say hi"
+> ask "Create proposal for bus subscription platform and deliver it"
 ```
 
-`pi chat` requires the relevant API key in your environment (example: `OPENAI_API_KEY`).
+`ask` requires the relevant API key in your environment (example: `OPENAI_API_KEY`).
+
+### Integration Note
+
+The pi agent runtime is now part of the main system path:
+
+`CLI → Assistant Agent (pi-agent-core) → run_workflow/tools → outputs`
 
 ## 1. Vision
 
