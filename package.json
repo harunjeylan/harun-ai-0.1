@@ -1,0 +1,24 @@
+{
+  "name": "harunai",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Personal AI Operations System (CLI, multi-agent, workflow-driven).",
+  "bin": {
+    "harunai": "./src/cli.ts"
+  },
+  "scripts": {
+    "dev": "bun run src/cli.ts",
+    "build": "bun build src/cli.ts --outdir dist --target bun",
+    "start": "bun run dist/cli.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "chalk": "^5.4.1",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "typescript": "^5.8.2"
+  }
+}

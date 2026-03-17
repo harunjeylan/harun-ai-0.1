@@ -1,0 +1,7 @@
+node_modules/
+dist/
+.harunai/
+outputs/
+.env
+.DS_Store
+
