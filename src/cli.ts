@@ -38,7 +38,6 @@ function printHelp() {
 }
 
 const app = await createApp();
-printHelp();
 
 const rl = createInterface({
   input: stdin,
@@ -151,9 +150,7 @@ rl.on("line", async (line) => {
         rl.prompt();
         return;
       }
-      stdout.write(
-        "Usage: /pi providers | /pi models <provider>\n",
-      );
+      stdout.write("Usage: /pi providers | /pi models <provider>\n");
       rl.prompt();
       return;
     }

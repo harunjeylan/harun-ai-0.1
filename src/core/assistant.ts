@@ -7,6 +7,8 @@ import type { WorkflowEngine } from "./workflow/engine.js";
 
 export class Assistant {
   private readonly agent: Agent;
+  private readonly provider: string;
+  private readonly modelId: string;
 
   constructor(
     private readonly deps: {
@@ -17,11 +19,12 @@ export class Assistant {
   ) {
     this.agent = new Agent();
 
+    this.provider = process.env.HARUNAI_PROVIDER ?? "openai";
+    this.modelId = process.env.HARUNAI_MODEL ?? "gpt-4.1-mini";
+
     this.agent.getApiKey = (provider) => getApiKeyForProvider(provider);
 
-    const provider = process.env.HARUNAI_PROVIDER ?? "openai";
-    const modelId = process.env.HARUNAI_MODEL ?? "gpt-4.1-mini";
-    this.agent.setModel(resolveModel(provider, modelId));
+    this.agent.setModel(resolveModel(this.provider, this.modelId));
 
     this.agent.setSystemPrompt(
       [
@@ -39,22 +42,59 @@ export class Assistant {
   }
 
   async prompt(text: string) {
+    const apiKey = getApiKeyForProvider(this.provider);
+    if (!apiKey) {
+      process.stdout.write(
+        chalk.red(
+          `[assistant] Missing API key for provider "${this.provider}". Set env var and retry.\n`,
+        ),
+      );
+      if (this.provider === "openrouter")
+        process.stdout.write(
+          chalk.gray("Expected: OPENROUTER_API_KEY\n"),
+        );
+      if (this.provider === "openai")
+        process.stdout.write(chalk.gray("Expected: OPENAI_API_KEY\n"));
+      if (this.provider === "anthropic")
+        process.stdout.write(chalk.gray("Expected: ANTHROPIC_API_KEY\n"));
+      if (this.provider === "google")
+        process.stdout.write(chalk.gray("Expected: GOOGLE_API_KEY\n"));
+      return;
+    }
+
     const unsubscribe = this.agent.subscribe((e) => {
       if (e.type === "message_update") {
         const ev = e.assistantMessageEvent;
         if (ev.type === "text_delta") process.stdout.write(ev.delta);
-        if (ev.type === "thinking_delta") process.stdout.write(chalk.gray(ev.delta));
+        if (ev.type === "thinking_delta")
+          process.stdout.write(chalk.gray(ev.delta));
         if (ev.type === "error")
           process.stdout.write(
-            chalk.red(`\n[assistant error] ${ev.error.errorMessage ?? "Unknown error"}\n`),
+            chalk.red(
+              `\n[assistant error] ${ev.error.errorMessage ?? "Unknown error"}\n`,
+            ),
           );
         if (ev.type === "done") process.stdout.write("\n");
       }
     });
 
     try {
-      await this.agent.prompt(text);
-      await this.agent.waitForIdle();
+      const timeoutMs = Number(process.env.HARUNAI_TIMEOUT_MS ?? "45000");
+      const timeout = setTimeout(() => {
+        process.stdout.write(
+          chalk.red(
+            `\n[assistant] Timed out after ${timeoutMs}ms. Check network/API key and try again.\n`,
+          ),
+        );
+        this.agent.abort();
+      }, timeoutMs);
+
+      try {
+        await this.agent.prompt(text);
+        await this.agent.waitForIdle();
+      } finally {
+        clearTimeout(timeout);
+      }
     } finally {
       unsubscribe();
     }
@@ -77,11 +117,19 @@ export class Assistant {
         const name = (params as any).name as string;
         const input = ((params as any).input ?? {}) as Record<string, unknown>;
         await workflowEngine.runByName(name, { input });
-        return { content: [{ type: "text", text: `Ran workflow: ${name}` }], details: {} };
+        return {
+          content: [{ type: "text", text: `Ran workflow: ${name}` }],
+          details: {},
+        };
       },
     };
 
-    const toolToAgentTool = (name: string, label: string, description: string, parameters: any): AgentTool => ({
+    const toolToAgentTool = (
+      name: string,
+      label: string,
+      description: string,
+      parameters: any,
+    ): AgentTool => ({
       name,
       label,
       description,
@@ -89,7 +137,10 @@ export class Assistant {
       async execute(toolCallId, params) {
         void toolCallId;
         await runtime.invoke(name, params as Record<string, unknown>);
-        return { content: [{ type: "text", text: `Executed tool: ${name}` }], details: {} };
+        return {
+          content: [{ type: "text", text: `Executed tool: ${name}` }],
+          details: {},
+        };
       },
     });
 
@@ -130,11 +181,14 @@ function resolveModel(provider: string, modelId: string): Model<any> {
 }
 
 function createOpenRouterModel(modelId: string): Model<"openai-completions"> {
-  const baseUrl = process.env.OPENROUTER_BASE_URL ?? "https://openrouter.ai/api/v1";
+  const baseUrl =
+    process.env.OPENROUTER_BASE_URL ?? "https://openrouter.ai/api/v1";
   const headers: Record<string, string> = {};
 
-  if (process.env.OPENROUTER_HTTP_REFERER) headers["HTTP-Referer"] = process.env.OPENROUTER_HTTP_REFERER;
-  if (process.env.OPENROUTER_X_TITLE) headers["X-Title"] = process.env.OPENROUTER_X_TITLE;
+  if (process.env.OPENROUTER_HTTP_REFERER)
+    headers["HTTP-Referer"] = process.env.OPENROUTER_HTTP_REFERER;
+  if (process.env.OPENROUTER_X_TITLE)
+    headers["X-Title"] = process.env.OPENROUTER_X_TITLE;
 
   return {
     id: modelId,
