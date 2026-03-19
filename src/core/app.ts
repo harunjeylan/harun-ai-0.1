@@ -30,6 +30,7 @@ export async function createApp(): Promise<App> {
     runtime,
     workflowEngine,
     planner,
+    cwd: process.cwd(),
   });
 
   const workers = new Map<string, WorkerAgent>();

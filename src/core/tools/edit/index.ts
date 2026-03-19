@@ -1,210 +1,146 @@
 /**
  * Edit tool - Precise text replacement with fuzzy matching
- * Based on Pi's edit.ts implementation
+ * Based on Pi's edit tool implementation with diff support
  */
 
-import { readFile, writeFile, access } from "fs/promises";
 import { constants } from "fs";
+import { access as fsAccess, readFile as fsReadFile, writeFile as fsWriteFile } from "fs/promises";
+import {
+	detectLineEnding,
+	normalizeToLF,
+	restoreLineEndings,
+	stripBom,
+	normalizeForFuzzyMatch,
+	fuzzyFindText,
+	generateDiffString,
+} from "./edit-diff";
 import { resolvePath } from "../utils/path-utils";
+import { Type } from "@sinclair/typebox";
+import type { AgentTool } from "@mariozechner/pi-agent-core";
 
-export const editDefination = {
-  name: "edit",
-  description:
-    "Make precise text replacements in files. " +
-    "Uses exact string matching with fuzzy fallback. " +
-    "Fails if the old_text is not found or if multiple occurrences are found.",
-  inputSchema: {
-    type: "object",
-    properties: {
-      path: {
-        type: "string",
-        description: "Path to the file (relative or absolute). Supports ~ for home directory.",
-      },
-      old_text: {
-        type: "string",
-        description: "Text to search for. Must match exactly (or close with fuzzy matching).",
-      },
-      new_text: {
-        type: "string",
-        description: "Text to replace with.",
-      },
-    },
-    required: ["path", "old_text", "new_text"],
-  },
-} as const;
+export const editSchema = Type.Object({
+	path: Type.String({ description: "Path to the file to edit (relative or absolute)" }),
+	oldText: Type.String({ description: "Text to search for. Must match exactly including whitespace and newlines." }),
+	newText: Type.String({ description: "New text to replace the old text with" }),
+});
 
-export interface EditInput {
-  path: string;
-  old_text: string;
-  new_text: string;
+export interface EditToolDetails {
+	diff: string;
+	firstChangedLine?: number;
 }
 
-export interface EditOutput {
-  success: boolean;
-  path: string;
-  diff?: string;
-  error?: string;
+export interface EditToolOptions {
+	cwd?: string;
 }
 
-/**
- * Normalize text for fuzzy matching
- * Applies transformations to make matching more forgiving
- */
-function normalizeForMatching(text: string): string {
-  return (
-    text
-      // Strip trailing whitespace per line
-      .split("\n")
-      .map((line) => line.trimEnd())
-      .join("\n")
-      // Normalize smart quotes to ASCII
-      .replace(/[\u2018\u2019]/g, "'")
-      .replace(/[\u201c\u201d]/g, '"')
-      // Normalize Unicode dashes to hyphen
-      .replace(/[\u2013\u2014]/g, "-")
-      // Normalize special spaces to regular space
-      .replace(/[\u00a0\u2000-\u200a\u202f\u205f]/g, " ")
-      // Trim overall
-      .trim()
-  );
-}
+export function createEditTool(options?: EditToolOptions): AgentTool<typeof editSchema> {
+	const cwd = options?.cwd ?? process.cwd();
 
-/**
- * Find all occurrences of a pattern in content
- */
-function findAllOccurrences(content: string, pattern: string): number[] {
-  const indices: number[] = [];
-  let pos = 0;
+	return {
+		name: "edit",
+		label: "Edit",
+		description: "Edit a file by replacing exact text. The oldText must match exactly including whitespace and newlines.",
+		parameters: editSchema,
+		execute: async (
+			_toolCallId: string,
+			{ path, oldText, newText }: { path: string; oldText: string; newText: string },
+			signal?: AbortSignal,
+		) => {
+			const absolutePath = resolvePath(path, cwd);
 
-  while ((pos = content.indexOf(pattern, pos)) !== -1) {
-    indices.push(pos);
-    pos += 1; // Move forward to find overlapping matches
-  }
+			return new Promise<{
+				content: Array<{ type: "text"; text: string }>;
+				details: EditToolDetails | undefined;
+			}>((resolve, reject) => {
+				if (signal?.aborted) {
+					reject(new Error("Operation aborted"));
+					return;
+				}
 
-  return indices;
-}
+				let aborted = false;
 
-/**
- * Generate unified diff
- */
-function generateDiff(
-  oldContent: string,
-  newContent: string,
-  path: string
-): string {
-  const oldLines = oldContent.split("\n");
-  const newLines = newContent.split("\n");
+				const onAbort = () => {
+					aborted = true;
+					reject(new Error("Operation aborted"));
+				};
 
-  // Simple line-by-line diff
-  let diff = `--- ${path}\n+++ ${path}\n`;
+				if (signal) {
+					signal.addEventListener("abort", onAbort, { once: true });
+				}
 
-  // Find first changed line
-  let startLine = 0;
-  while (
-    startLine < oldLines.length &&
-    startLine < newLines.length &&
-    oldLines[startLine] === newLines[startLine]
-  ) {
-    startLine++;
-  }
+				(async () => {
+					try {
+						try {
+							await fsAccess(absolutePath, constants.R_OK | constants.W_OK);
+						} catch {
+							if (signal) signal.removeEventListener("abort", onAbort);
+							reject(new Error(`File not found: ${path}`));
+							return;
+						}
 
-  // Show context (3 lines before)
-  const contextStart = Math.max(0, startLine - 3);
-  for (let i = contextStart; i < startLine && i < oldLines.length; i++) {
-    diff += ` ${oldLines[i]}\n`;
-  }
+						if (aborted) return;
 
-  // Show removed lines
-  for (let i = startLine; i < oldLines.length; i++) {
-    diff += `-${oldLines[i]}\n`;
-  }
+						const buffer = await fsReadFile(absolutePath);
+						const rawContent = buffer.toString("utf-8");
 
-  // Show added lines
-  for (let i = startLine; i < newLines.length; i++) {
-    diff += `+${newLines[i]}\n`;
-  }
+						if (aborted) return;
 
-  return diff;
-}
+						const { bom, text: content } = stripBom(rawContent);
+						const originalEnding = detectLineEnding(content);
+						const normalizedContent = normalizeToLF(content);
+						const normalizedOldText = normalizeToLF(oldText);
+						const normalizedNewText = normalizeToLF(newText);
 
-import type { ToolDeps } from "../../runtime/tools.js";
+						const matchResult = fuzzyFindText(normalizedContent, normalizedOldText);
 
-export async function toolHandler(
-  input: EditInput,
-  deps: ToolDeps
-): Promise<EditOutput> {
-  const resolvedPath = resolvePath(input.path, deps.cwd);
+						if (!matchResult.found) {
+							if (signal) signal.removeEventListener("abort", onAbort);
+							reject(new Error(`Could not find the exact text in ${path}. The old text must match exactly including all whitespace and newlines.`));
+							return;
+						}
 
-  // Check if file exists
-  try {
-    await access(resolvedPath, constants.R_OK | constants.W_OK);
-  } catch {
-    return {
-      success: false,
-      path: resolvedPath,
-      error: `File not found or not writable: ${input.path}`,
-    };
-  }
+						const fuzzyContent = normalizeForFuzzyMatch(normalizedContent);
+						const fuzzyOldText = normalizeForFuzzyMatch(normalizedOldText);
+						const occurrences = fuzzyContent.split(fuzzyOldText).length - 1;
 
-  // Read file
-  const originalContent = await readFile(resolvedPath, "utf-8");
+						if (occurrences > 1) {
+							if (signal) signal.removeEventListener("abort", onAbort);
+							reject(new Error(`Found ${occurrences} occurrences of the text in ${path}. The text must be unique. Please provide more context to make it unique.`));
+							return;
+						}
 
-  // Try exact match first
-  let occurrences = findAllOccurrences(originalContent, input.old_text);
+						if (aborted) return;
 
-  // If not found, try fuzzy matching
-  if (occurrences.length === 0) {
-    const normalizedOld = normalizeForMatching(input.old_text);
-    const normalizedContent = normalizeForMatching(originalContent);
+						const baseContent = matchResult.contentForReplacement;
+						const newContent =
+							baseContent.substring(0, matchResult.index) +
+							normalizedNewText +
+							baseContent.substring(matchResult.index + matchResult.matchLength);
 
-    // Find in normalized content
-    const normalizedPos = normalizedContent.indexOf(normalizedOld);
-    if (normalizedPos !== -1) {
-      // Map back to original position (approximate)
-      // For simplicity, we'll search for a unique substring
-      const uniquePart = normalizedOld.substring(0, Math.min(50, normalizedOld.length));
-      const fuzzyOccurrences = findAllOccurrences(originalContent, uniquePart);
+						if (baseContent === newContent) {
+							if (signal) signal.removeEventListener("abort", onAbort);
+							reject(new Error(`No changes made to ${path}. The replacement produced identical content.`));
+							return;
+						}
 
-      if (fuzzyOccurrences.length === 1) {
-        occurrences = fuzzyOccurrences;
-      }
-    }
-  }
+						const finalContent = bom + restoreLineEndings(newContent, originalEnding);
+						await fsWriteFile(absolutePath, finalContent, "utf-8");
 
-  // Check results
-  if (occurrences.length === 0) {
-    return {
-      success: false,
-      path: resolvedPath,
-      error: `Could not find text to replace in ${input.path}. The old_text was not found.`,
-    };
-  }
+						if (aborted) return;
 
-  if (occurrences.length > 1) {
-    return {
-      success: false,
-      path: resolvedPath,
-      error: `Found ${occurrences.length} occurrences of the text in ${input.path}. ` +
-        `Edit requires a unique match. Please provide more context to make the match unique.`,
-    };
-  }
+						if (signal) signal.removeEventListener("abort", onAbort);
 
-  // Perform replacement
-  const position = occurrences[0];
-  const newContent =
-    originalContent.substring(0, position) +
-    input.new_text +
-    originalContent.substring(position + input.old_text.length);
-
-  // Generate diff
-  const diff = generateDiff(originalContent, newContent, input.path);
-
-  // Write file
-  await writeFile(resolvedPath, newContent, "utf-8");
-
-  return {
-    success: true,
-    path: resolvedPath,
-    diff,
-  };
+						const diffResult = generateDiffString(baseContent, newContent);
+						resolve({
+							content: [{ type: "text", text: `Successfully replaced text in ${path}.` }],
+							details: { diff: diffResult.diff, firstChangedLine: diffResult.firstChangedLine },
+						});
+					} catch (error: any) {
+						if (signal) signal.removeEventListener("abort", onAbort);
+						if (!aborted) reject(error);
+					}
+				})();
+			});
+		},
+	};
 }

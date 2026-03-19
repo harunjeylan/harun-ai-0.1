@@ -14,6 +14,7 @@ import type { ToolRuntime } from "../runtime/tools";
 import type { WorkflowEngine } from "../workflow/engine";
 import type { Planner, PlanResult } from "./planner";
 import { WorkerAgent } from "./worker";
+import { createEditTool } from "../tools/edit/index.js";
 
 export type AssistantEvent = AgentEvent;
 
@@ -32,6 +33,7 @@ export class Assistant {
       runtime: ToolRuntime;
       workflowEngine: WorkflowEngine;
       planner: Planner;
+      cwd?: string;
     },
   ) {
     this.agent = new Agent();
@@ -85,8 +87,11 @@ export class Assistant {
   }
 
   private buildTools(): AgentTool[] {
-    const { runtime, registry } = this.deps;
-    const tools: AgentTool[] = [];
+    const { runtime, registry, cwd } = this.deps;
+    const tools: AgentTool<any>[] = [];
+
+    // Add the enhanced edit tool with diff support
+    tools.push(createEditTool({ cwd }) as AgentTool<any>);
 
     const toolNames = registry.listTools();
 
