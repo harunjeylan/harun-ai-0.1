@@ -3,34 +3,31 @@
  * Uses @mariozechner/pi-tui for a rich, flicker-free interface
  */
 
-import type { App } from "../core/app";
-import type { AssistantEvent } from "../core/agents/assistant";
-import type { SessionInfo } from "../session/types";
-import { SessionManagerFactory } from "../session/factory";
-import { StreamingMessageComponent } from "./streaming-message";
+import { getApiProviders } from "@mariozechner/pi-ai";
 import {
-  TUI,
-  ProcessTerminal,
+  CombinedAutocompleteProvider,
+  type Component,
   Container,
   Editor,
-  Text,
-  TruncatedText,
-  Spacer,
-  Markdown,
-  CombinedAutocompleteProvider,
-  matchesKey,
-  Key,
-  SelectList,
-  Loader,
-  type Component,
   type EditorTheme,
+  Key,
+  Loader,
+  Markdown,
   type MarkdownTheme,
+  matchesKey,
+  ProcessTerminal,
+  SelectList,
+  Spacer,
+  TUI,
 } from "@mariozechner/pi-tui";
-import { getApiProviders } from "@mariozechner/pi-ai";
 import chalk from "chalk";
-import { join } from "path";
+import { existsSync, mkdirSync } from "fs";
 import { homedir } from "os";
-import { mkdirSync, existsSync } from "fs";
+import { join } from "path";
+import type { App } from "../core/app";
+import { SessionManagerFactory } from "../session/factory";
+import type { SessionInfo } from "../session/types";
+import { StreamingMessageComponent } from "./streaming-message";
 
 const SESSIONS_DIR = join(homedir(), ".harunai", "sessions");
 
@@ -124,10 +121,10 @@ class FooterComponent implements Component {
 
     // Build stats
     const statsParts: string[] = [];
-    
+
     // Cost (placeholder - implement actual cost tracking)
     statsParts.push("$0.000");
-    
+
     // Message count
     if (messageCount > 0) {
       statsParts.push(`↑${messageCount}`);
@@ -145,15 +142,42 @@ class FooterComponent implements Component {
     // Build status line with right-aligned model name
     const statsLeftWidth = statsLeft.length;
     const rightSideWidth = rightSide.length;
-    const padding = " ".repeat(Math.max(2, width - statsLeftWidth - rightSideWidth));
+    const padding = " ".repeat(
+      Math.max(2, width - statsLeftWidth - rightSideWidth),
+    );
     const statsLine = statsLeft + padding + rightSide;
 
     const pwdLine = pwd.slice(0, width);
-    
-    return [
-      theme.dim(pwdLine),
-      theme.dim(statsLine),
-    ];
+
+    return [theme.dim(pwdLine), theme.dim(statsLine)];
+  }
+}
+
+/**
+ * Header component with ASCII art banner
+ */
+class HeaderComponent implements Component {
+  private readonly banner = [
+    "██╗  ██╗ █████╗ ██████╗ ██╗   ██╗███╗   ██╗ █████╗ ██╗",
+    "██║  ██║██╔══██╗██╔══██╗██║   ██║████╗  ██║██╔══██╗██║",
+    "███████║███████║██████╔╝██║   ██║██╔██╗ ██║███████║██║",
+    "██╔══██║██╔══██║██╔══██╗██║   ██║██║╚██╗██║██╔══██║██║",
+    "██║  ██║██║  ██║██║  ██║╚██████╔╝██║ ╚████║██║  ██║██║",
+    "╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═══╝╚═╝  ╚═╝╚═╝",
+  ];
+
+  invalidate(): void {}
+
+  render(width: number): string[] {
+    // Center the banner
+    const padding = Math.max(
+      0,
+      Math.floor((width - this.banner[0].length) / 2),
+    );
+    const centeredBanner = this.banner.map(
+      (line) => " ".repeat(padding) + line,
+    );
+    return centeredBanner.map((line) => chalk.cyan(line));
   }
 }
 
@@ -167,27 +191,40 @@ class UserMessageComponent implements Component {
 
   render(width: number): string[] {
     const lines = this.message.content.split("\n");
-    const maxContentWidth = width - 4; // Account for padding and border
-    
+    const paddingX = 2;
+    const paddingY = 1;
+    const maxContentWidth = width - paddingX * 2 - 2;
+
     const wrappedLines: string[] = [];
     for (const line of lines) {
       if (line.length <= maxContentWidth) {
         wrappedLines.push(line);
       } else {
-        // Simple wrap
         for (let i = 0; i < line.length; i += maxContentWidth) {
           wrappedLines.push(line.slice(i, i + maxContentWidth));
         }
       }
     }
 
-    // Pad lines to width and apply background
-    const paddedLines = wrappedLines.map(line => {
+    const paddedLines = wrappedLines.map((line) => {
       const padding = " ".repeat(Math.max(0, maxContentWidth - line.length));
-      return "  " + theme.userMessageBg(line + padding) + "  ";
+      return theme.userMessageBg(
+        " ".repeat(paddingX) + line + padding + " ".repeat(paddingX),
+      );
     });
 
-    return paddedLines;
+    // Add vertical padding
+    const emptyLine = theme.userMessageBg(" ".repeat(width));
+    const result: string[] = [];
+    for (let i = 0; i < paddingY; i++) {
+      result.push(emptyLine);
+    }
+    result.push(...paddedLines);
+    for (let i = 0; i < paddingY; i++) {
+      result.push(emptyLine);
+    }
+
+    return result;
   }
 }
 
@@ -200,7 +237,7 @@ class AssistantMessageComponent implements Component {
   private markdown: Markdown;
 
   constructor(private message: Message) {
-    this.markdown = new Markdown(message.content, 2, 1, markdownTheme);
+    this.markdown = new Markdown(message.content, 1, 1, markdownTheme);
   }
 
   render(width: number): string[] {
@@ -225,7 +262,10 @@ class SessionSelectorComponent implements Component {
     if (matchesKey(data, Key.up)) {
       this.selectedIndex = Math.max(0, this.selectedIndex - 1);
     } else if (matchesKey(data, Key.down)) {
-      this.selectedIndex = Math.min(this.sessions.length, this.selectedIndex + 1);
+      this.selectedIndex = Math.min(
+        this.sessions.length,
+        this.selectedIndex + 1,
+      );
     } else if (matchesKey(data, Key.enter)) {
       if (this.selectedIndex === this.sessions.length) {
         this.onSelect(null); // New session
@@ -252,7 +292,8 @@ class SessionSelectorComponent implements Component {
       lines.push(label);
     });
 
-    const newPrefix = this.selectedIndex === this.sessions.length ? chalk.cyan("→ ") : "  ";
+    const newPrefix =
+      this.selectedIndex === this.sessions.length ? chalk.cyan("→ ") : "  ";
     lines.push(`${newPrefix}${chalk.bold("New session")}`);
     lines.push("");
     lines.push(theme.dim("↑↓ navigate, Enter select, n new, q quit"));
@@ -272,36 +313,43 @@ export class HarunTUI {
   private editor: Editor;
   private footer: FooterComponent;
   private messages: Message[] = [];
-  private sessionOverlayHandle: ReturnType<TUI['showOverlay']> | undefined;
+  private sessionOverlayHandle: ReturnType<TUI["showOverlay"]> | undefined;
   private streamingComponent: StreamingMessageComponent | undefined;
   private loadingAnimation: Loader | undefined;
   private unsubscribeAgent: (() => void) | undefined;
 
   constructor(app: App) {
     this.app = app;
-    
+
     // Create TUI
     this.tui = new TUI(new ProcessTerminal(), false);
-    
+
     // Create containers
     this.chatContainer = new Container();
     this.statusContainer = new Container();
-    
+
     // Create editor
     this.editor = new Editor(this.tui, editorTheme);
     this.editor.onSubmit = (text) => this.handleSubmit(text);
-    
+
     // Setup autocomplete
     const autocompleteProvider = new CombinedAutocompleteProvider(
-      slashCommands.map(cmd => ({ name: cmd.name, description: cmd.description })),
+      slashCommands.map((cmd) => ({
+        name: cmd.name,
+        description: cmd.description,
+      })),
       process.cwd(),
     );
     this.editor.setAutocompleteProvider(autocompleteProvider);
-    
+
     // Create footer
     this.footer = new FooterComponent(app);
 
+    // Create header
+    const header = new HeaderComponent();
+
     // Setup layout
+    this.tui.addChild(header);
     this.tui.addChild(this.chatContainer);
     this.tui.addChild(this.statusContainer);
     this.tui.addChild(new Spacer(1));
@@ -310,7 +358,9 @@ export class HarunTUI {
     this.tui.addChild(this.footer);
 
     // Subscribe to agent events
-    this.unsubscribeAgent = this.app.assistant.subscribe((event: any) => this.handleAgentEvent(event));
+    this.unsubscribeAgent = this.app.assistant.subscribe((event: any) =>
+      this.handleAgentEvent(event),
+    );
 
     // CRITICAL: Set focus on the editor so it can receive keyboard input
     this.tui.setFocus(this.editor);
@@ -343,7 +393,7 @@ export class HarunTUI {
         this.restoreMessages();
         this.tui.requestRender();
       });
-      
+
       this.sessionOverlayHandle = this.tui.showOverlay(selector, {
         anchor: "center",
         width: "80%",
@@ -372,16 +422,15 @@ export class HarunTUI {
 
   private addMessage(message: Message): void {
     this.messages.push(message);
-    
+
     let component: Component;
     if (message.role === "user") {
       component = new UserMessageComponent(message);
     } else {
       component = new AssistantMessageComponent(message);
     }
-    
+
     this.chatContainer.addChild(component);
-    this.chatContainer.addChild(new Spacer(1));
   }
 
   private async handleSubmit(text: string): Promise<void> {
@@ -438,7 +487,9 @@ export class HarunTUI {
         if (event.message?.role === "assistant") {
           this.showLoading(false);
           // Create streaming component
-          this.streamingComponent = new StreamingMessageComponent(markdownTheme);
+          this.streamingComponent = new StreamingMessageComponent(
+            markdownTheme,
+          );
           this.chatContainer.addChild(this.streamingComponent);
           this.chatContainer.addChild(new Spacer(1));
           this.tui.requestRender();
@@ -461,7 +512,10 @@ export class HarunTUI {
           const finalContent = this.streamingComponent.getContent();
           if (finalContent.trim()) {
             // Finalize and convert to static message
-            this.finalizeStreamingMessage(finalContent, event.message.errorMessage);
+            this.finalizeStreamingMessage(
+              finalContent,
+              event.message.errorMessage,
+            );
           } else if (event.message.errorMessage) {
             // Show error if no content
             this.addMessage({
@@ -493,7 +547,10 @@ export class HarunTUI {
             content: `Error: ${event.error?.errorMessage ?? "Unknown error"}`,
             timestamp: Date.now(),
           });
-        } else if (event.type === "agent_error" || event.type === "turn_error") {
+        } else if (
+          event.type === "agent_error" ||
+          event.type === "turn_error"
+        ) {
           this.addMessage({
             id: `msg_${Date.now()}_error`,
             role: "system",
@@ -524,7 +581,10 @@ export class HarunTUI {
     this.tui.requestRender();
   }
 
-  private finalizeStreamingMessage(content: string, errorMessage?: string): void {
+  private finalizeStreamingMessage(
+    content: string,
+    errorMessage?: string,
+  ): void {
     // Remove streaming component from container
     if (this.streamingComponent) {
       const idx = this.chatContainer.children.indexOf(this.streamingComponent);
@@ -582,15 +642,15 @@ export class HarunTUI {
         this.listProviders();
         break;
 
-      case "new":
+      case "new": {
         this.app.sessionManager = SessionManagerFactory.create(process.cwd());
         this.messages = [];
         while (this.chatContainer.children.length > 0) {
           this.chatContainer.removeChild(this.chatContainer.children[0]);
         }
         break;
-
-      case "sessions":
+      }
+      case "sessions": {
         const sessions = await SessionManagerFactory.list(process.cwd());
         const selector = new SessionSelectorComponent(sessions, (session) => {
           if (session) {
@@ -602,7 +662,7 @@ export class HarunTUI {
         });
         this.tui.showOverlay(selector, { anchor: "center", width: "80%" });
         break;
-
+      }
       case "clear":
         this.messages = [];
         while (this.chatContainer.children.length > 0) {

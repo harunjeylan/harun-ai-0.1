@@ -1,4 +1,9 @@
-import { Container, Markdown, Spacer, Text, type MarkdownTheme } from "@mariozechner/pi-tui";
+import {
+  Container,
+  Markdown,
+  type MarkdownTheme,
+  Spacer,
+} from "@mariozechner/pi-tui";
 
 export class StreamingMessageComponent extends Container {
   private contentContainer: Container;
@@ -19,7 +24,9 @@ export class StreamingMessageComponent extends Container {
 
     if (this.fullText.trim()) {
       this.contentContainer.addChild(new Spacer(1));
-      this.contentContainer.addChild(new Markdown(this.fullText, 1, 0, this.markdownTheme));
+      this.contentContainer.addChild(
+        new Markdown(this.fullText, 2, 2, this.markdownTheme),
+      );
     }
   }
 

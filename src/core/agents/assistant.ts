@@ -101,12 +101,6 @@ export class Assistant {
         description: toolSpec?.description ?? `Execute ${toolName} tool.`,
         parameters: inputSchema ?? Type.Object({}),
         async execute(toolCallId, params) {
-          console.log(
-            "[DEBUG] Executing tool:",
-            toolName,
-            "params:",
-            JSON.stringify(params),
-          );
           try {
             await runtime.invoke(toolName, params as Record<string, unknown>);
             return {
@@ -114,7 +108,6 @@ export class Assistant {
               details: {},
             };
           } catch (err) {
-            console.error("[DEBUG] Tool error:", toolName, err);
             throw err;
           }
         },
