@@ -37,11 +37,9 @@ type AgentsFile = z.infer<typeof AgentsFileSchema>;
 
 const jsonCache = new Map<string, unknown | null>();
 
-function loadJsonFile<T>(
-  filePath: string,
-  schema: z.ZodSchema<T>,
-): T | null {
-  if (jsonCache.has(filePath)) return (jsonCache.get(filePath) as T | null) ?? null;
+function loadJsonFile<T>(filePath: string, schema: z.ZodSchema<T>): T | null {
+  if (jsonCache.has(filePath))
+    return (jsonCache.get(filePath) as T | null) ?? null;
   if (!fs.existsSync(filePath)) {
     jsonCache.set(filePath, null);
     return null;
@@ -64,15 +62,15 @@ function loadJsonFile<T>(
 }
 
 function loadDefaults(): DefaultsFile | null {
-  return loadJsonFile("providers/defaults.json", DefaultsFileSchema);
+  return loadJsonFile("config/providers/defaults.json", DefaultsFileSchema);
 }
 
 function loadAgents(): AgentsFile | null {
-  return loadJsonFile("providers/agents.json", AgentsFileSchema);
+  return loadJsonFile("config/providers/agent.json", AgentsFileSchema);
 }
 
 function loadProvider(provider: string): ProviderFile | null {
-  return loadJsonFile(`providers/${provider}.json`, ProviderFileSchema);
+  return loadJsonFile(`config/providers/${provider}.json`, ProviderFileSchema);
 }
 
 function pickApiKey(
@@ -84,7 +82,9 @@ function pickApiKey(
 export function getProviderConfigForAgent(agentName: string): ProviderConfig {
   const defaultsFile = loadDefaults();
   if (!defaultsFile) {
-    throw new Error('Missing required config file: providers/defaults.json');
+    throw new Error(
+      "Missing required config file: config/providers/defaults.json",
+    );
   }
 
   const baseProvider = defaultsFile.provider;
@@ -139,7 +139,7 @@ export function resolveModel(cfg: {
   if (!model) {
     throw new Error(
       `Failed to resolve model for provider "${provider}" and model "${modelId}". ` +
-        `Check providers/ configuration.`,
+        `Check config/providers/ configuration.`,
     );
   }
 
@@ -149,4 +149,3 @@ export function resolveModel(cfg: {
     headers: cfg.headers ?? model.headers,
   };
 }
-

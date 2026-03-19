@@ -40,14 +40,14 @@ This project currently has **no test suite**. Do not write tests unless explicit
 
 ### General
 - **Language**: TypeScript (strict mode enabled)
-- **Module System**: ES Modules with explicit `.js` extensions in imports
+- **Module System**: ES Modules with explicit `` extensions in imports
 - **Runtime**: Bun (ES2022 target)
 
 ### Formatting & Imports
 - Use named exports only (no default exports unless from external packages)
-- Import paths must include `.js` extension: `import { foo } from "./bar.js";`
+- Import paths must include `` extension: `import { foo } from "./bar";`
 - Order imports: external packages → internal modules → relative paths
-- Use explicit type imports: `import type { Foo } from "./bar.js";`
+- Use explicit type imports: `import type { Foo } from "./bar";`
 
 ### Naming Conventions
 - **Files**: kebab-case (e.g., `workflow-engine.ts`)
@@ -57,7 +57,7 @@ This project currently has **no test suite**. Do not write tests unless explicit
 - **Interfaces/Types**: PascalCase (e.g., `interface Registry`)
 
 ### TypeScript Rules
-- `strict: true` is enabled in tsconfig.json
+- `strict: true` is enabled in tsconfigon
 - Always declare return types for exported functions
 - Use `any` sparingly; prefer explicit types
 - Use `type` for simple type aliases, `interface` for object shapes

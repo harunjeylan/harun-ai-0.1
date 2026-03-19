@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
-import { createDefaultRegistry } from "./registry/default-registry.js";
-import { runTui } from "./tui/index.js";
+import { createDefaultRegistry } from "./registry/default-registry";
+import { runTUI } from "./tui/index";
+import { createApp } from "./core/app";
 
 function hasFlag(args: string[], flag: string): boolean {
   return args.includes(flag);
@@ -42,7 +43,9 @@ function cmdTools(registry: Awaited<ReturnType<typeof createDefaultRegistry>>) {
   process.stdout.write("\n");
 }
 
-function cmdAgents(registry: Awaited<ReturnType<typeof createDefaultRegistry>>) {
+function cmdAgents(
+  registry: Awaited<ReturnType<typeof createDefaultRegistry>>,
+) {
   const agents = registry.listAgents();
   process.stdout.write("Available agents:\n\n");
   for (const name of agents) {
@@ -58,7 +61,9 @@ function cmdAgents(registry: Awaited<ReturnType<typeof createDefaultRegistry>>) 
   process.stdout.write("\n");
 }
 
-function cmdWorkflows(registry: Awaited<ReturnType<typeof createDefaultRegistry>>) {
+function cmdWorkflows(
+  registry: Awaited<ReturnType<typeof createDefaultRegistry>>,
+) {
   const workflows = registry.listWorkflows();
   process.stdout.write("Available workflows:\n\n");
   for (const name of workflows) {
@@ -115,7 +120,9 @@ function cmdInspect(
     for (const step of workflow.steps) {
       process.stdout.write(`  - ${step.id}: ${step.agent}\n`);
       if (step.input_schema && Object.keys(step.input_schema).length) {
-        process.stdout.write(`    input_schema: ${JSON.stringify(step.input_schema)}\n`);
+        process.stdout.write(
+          `    input_schema: ${JSON.stringify(step.input_schema)}\n`,
+        );
       }
       if (step.output_ref) {
         process.stdout.write(`    output_ref: ${step.output_ref}\n`);
@@ -160,7 +167,8 @@ async function main() {
   }
 
   if (args.length === 0) {
-    await runTui();
+    const app = await createApp();
+    await runTUI(app);
     return;
   }
 

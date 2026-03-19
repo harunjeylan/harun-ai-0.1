@@ -1,13 +1,12 @@
+import { pathToFileURL } from "node:url";
 import fs from "fs";
 import path from "path";
 import {
-  Registry,
-  WorkflowSpecSchema,
-  ToolSpecSchema,
   AgentSpecSchema,
+  Registry,
+  ToolSpecSchema,
+  WorkflowSpecSchema,
 } from "../core/registry.js";
-import { pathToFileURL } from "node:url";
-import { zodToJsonSchema } from "zod-to-json-schema";
 
 export function loadWorkflowsFromDir(dir: string, registry: Registry): void {
   if (!fs.existsSync(dir)) {
@@ -15,7 +14,7 @@ export function loadWorkflowsFromDir(dir: string, registry: Registry): void {
     return;
   }
 
-  const files = fs.readdirSync(dir).filter((f) => f.endsWith(".json"));
+  const files = fs.readdirSync(dir).filter((f) => f.endsWith("on"));
 
   for (const file of files) {
     const filePath = path.join(dir, file);
@@ -25,7 +24,10 @@ export function loadWorkflowsFromDir(dir: string, registry: Registry): void {
 
       const result = WorkflowSpecSchema.safeParse(parsed);
       if (!result.success) {
-        console.warn(`[registry] Invalid workflow in ${file}:`, result.error.errors);
+        console.warn(
+          `[registry] Invalid workflow in ${file}:`,
+          result.error.errors,
+        );
         continue;
       }
 
@@ -85,9 +87,16 @@ export async function loadToolsFromDir(
     .filter((n) => n !== "tool-template");
 
   for (const toolDirName of toolDirs) {
-    const indexPath = path.join(process.cwd(), dir, toolDirName, "index.ts");
+    const indexPathJs = path.join(dir, toolDirName, "index.js");
+    const indexPathTs = path.join(dir, toolDirName, "index.ts");
     try {
-      if (!fs.existsSync(indexPath)) {
+      const indexPath = fs.existsSync(indexPathJs)
+        ? indexPathJs
+        : fs.existsSync(indexPathTs)
+          ? indexPathTs
+          : undefined;
+
+      if (!indexPath) {
         // allow tools to exist as legacy single-file modules for now
         continue;
       }
@@ -113,14 +122,10 @@ export async function loadToolsFromDir(
         continue;
       }
 
-      const jsonSchema = zodToJsonSchema(def.inputSchema, {
-        name: def.name,
-      }) as any;
-
       const spec = {
         name: def.name,
         description: def.description,
-        input_schema: jsonSchema,
+        input_schema: def.inputSchema,
       };
 
       const result = ToolSpecSchema.safeParse(spec);
@@ -191,7 +196,9 @@ function parseAgentMarkdown(
 
   const endIdx = trimmed.indexOf("\n---\n", 4);
   if (endIdx < 0) {
-    console.warn(`[registry] Agent markdown frontmatter not closed: ${filePath}`);
+    console.warn(
+      `[registry] Agent markdown frontmatter not closed: ${filePath}`,
+    );
     return null;
   }
 

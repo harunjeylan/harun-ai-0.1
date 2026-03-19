@@ -1,8 +1,15 @@
-import { Agent, type AgentTool, type AgentEvent } from "@mariozechner/pi-agent-core";
-import { Type, type Model } from "@mariozechner/pi-ai";
-import type { Registry } from "../registry.js";
-import type { ToolRuntime } from "./tools.js";
-import { getProviderConfigForAgent, resolveModel } from "../../providers/provider-registry.js";
+import {
+  Agent,
+  type AgentEvent,
+  type AgentTool,
+} from "@mariozechner/pi-agent-core";
+import { type Model, Type } from "@mariozechner/pi-ai";
+import {
+  getProviderConfigForAgent,
+  resolveModel,
+} from "../../providers/provider-registry";
+import type { Registry } from "../registry";
+import type { ToolRuntime } from "./tools";
 
 export type AgentRuntime = {
   invoke: (
@@ -32,7 +39,9 @@ export function createAgentRuntime(
       const toolSpec = registry.getTool(toolName);
       return {
         name: toolName,
-        label: toolName.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
+        label: toolName
+          .replace(/_/g, " ")
+          .replace(/\b\w/g, (c) => c.toUpperCase()),
         description: toolSpec?.description ?? `Execute ${toolName}`,
         parameters: Type.Object({}),
         async execute(toolCallId, params) {
@@ -64,7 +73,11 @@ export function createAgentRuntime(
         spec.system_prompt?.trim() ||
         `You are ${spec.description ?? agentName}.`;
 
-      const contextInfo = buildContextInfo(inputSchema, stepContext, workflowInput);
+      const contextInfo = buildContextInfo(
+        inputSchema,
+        stepContext,
+        workflowInput,
+      );
       const fullSystemPrompt = `${baseSystemPrompt}
 
 ${contextInfo}`;
@@ -72,7 +85,11 @@ ${contextInfo}`;
       agent.setSystemPrompt(fullSystemPrompt);
       agent.setTools(buildToolsForAgent(agentName));
 
-      const inputText = buildInputPrompt(inputSchema, stepContext, workflowInput);
+      const inputText = buildInputPrompt(
+        inputSchema,
+        stepContext,
+        workflowInput,
+      );
 
       let result: unknown = null;
 
@@ -100,9 +117,7 @@ ${contextInfo}`;
         const timeoutMs = 45000;
         const timeout = setTimeout(() => {
           agent.abort();
-          process.stdout.write(
-            `\n[agent] Timed out after ${timeoutMs}ms\n`,
-          );
+          process.stdout.write(`\n[agent] Timed out after ${timeoutMs}ms\n`);
         }, timeoutMs);
 
         try {
@@ -132,7 +147,9 @@ function buildContextInfo(
   }
 
   if (Object.keys(stepContext).length > 0) {
-    parts.push(`PREVIOUS STEP OUTPUTS:\n${JSON.stringify(stepContext, null, 2)}`);
+    parts.push(
+      `PREVIOUS STEP OUTPUTS:\n${JSON.stringify(stepContext, null, 2)}`,
+    );
   }
 
   if (Object.keys(workflowInput).length > 0) {

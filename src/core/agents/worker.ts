@@ -4,12 +4,12 @@ import {
   type AgentEvent,
 } from "@mariozechner/pi-agent-core";
 import { Type } from "@mariozechner/pi-ai";
-import type { AgentSpec, Registry } from "../registry.js";
-import type { ToolRuntime } from "../runtime/tools.js";
+import type { AgentSpec, Registry } from "../registry";
+import type { ToolRuntime } from "../runtime/tools";
 import {
   getProviderConfigForAgent,
   resolveModel,
-} from "../../providers/provider-registry.js";
+} from "../../providers/provider-registry";
 
 export class WorkerAgent {
   private readonly agent: Agent;

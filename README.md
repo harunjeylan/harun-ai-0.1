@@ -8,7 +8,7 @@
 
 ## Quickstart (MVP)
 
-Prereqs: Bun (recommended) + Node.js (for `tsc` typecheck).
+Prereqs: Bun (recommended) + Node (for `tsc` typecheck).
 
 ```bash
 bun install
@@ -514,4 +514,3 @@ HarunAI evolves into:
 HarunAI is:
 
 > **A CLI-based, multi-agent, workflow-driven AI system that automates professional operations and evolves dynamically through agent and workflow creation.**
-

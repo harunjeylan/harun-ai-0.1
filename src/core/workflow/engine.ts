@@ -1,6 +1,6 @@
 import chalk from "chalk";
-import type { Registry, WorkflowSpec, WorkflowStep } from "../registry.js";
-import type { AgentRuntime } from "../runtime/agents.js";
+import type { Registry, WorkflowSpec, WorkflowStep } from "../registry";
+import type { AgentRuntime } from "../runtime/agents";
 
 export type WorkflowRunContext = {
   input: Record<string, unknown>;
@@ -12,7 +12,7 @@ export class WorkflowEngine {
   constructor(
     private readonly registry: Registry,
     private readonly agentRuntime: AgentRuntime,
-  ) { }
+  ) {}
 
   async runByName(name: string, ctx: WorkflowRunContext) {
     const spec = this.registry.getWorkflow(name);
@@ -44,7 +44,11 @@ export class WorkflowEngine {
           i++;
         }
 
-        process.stdout.write(chalk.gray(`- Running ${parallelSteps.length} steps in parallel...\n`));
+        process.stdout.write(
+          chalk.gray(
+            `- Running ${parallelSteps.length} steps in parallel...\n`,
+          ),
+        );
         const results = await Promise.all(
           parallelSteps.map(async (s) => {
             process.stdout.write(chalk.gray(`  • ${s.id}: ${s.agent}\n`));

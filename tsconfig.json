@@ -10,6 +10,10 @@
     "resolveJsonModule": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
+    "jsx": "react-jsx",
+    "jsxImportSource": "@opentui/react",
+    "allowImportingTsExtensions": true,
+    "noEmit": true
   },
-  "include": ["src/**/*.ts", "src/core/tools/**/*.ts"],
+  "include": ["src/**/*.ts", "src/**/*.tsx", "src/core/tools/**/*.ts"],
 }

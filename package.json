@@ -8,10 +8,10 @@
     "harunai": "./src/main.ts"
   },
   "scripts": {
-    "dev": "bun run src/main.ts",
+    "dev": "bun run  --watch src/main.ts",
     "tui": "bun run src/main.ts",
     "build": "bun build src/main.ts --outdir dist --target bun",
-    "start": "bun run dist/main.js",
+    "start": "bun run dist/main",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
@@ -19,7 +19,7 @@
     "@mariozechner/pi-ai": "^0.58.4",
     "@mariozechner/pi-coding-agent": "^0.58.4",
     "@mariozechner/pi-mom": "^0.58.4",
-    "@mariozechner/pi-tui": "^0.58.4",
+    "blessed": "^0.1.81",
     "chalk": "^5.4.1",
     "dotenv": "^17.3.1",
     "pdf-lib": "^1.17.1",
@@ -27,6 +27,7 @@
     "zod-to-json-schema": "^3.25.1"
   },
   "devDependencies": {
+    "@types/blessed": "^0.1.25",
     "@types/node": "^22.13.10",
     "typescript": "^5.8.2"
   }

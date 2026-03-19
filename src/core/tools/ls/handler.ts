@@ -1,7 +1,7 @@
 import { readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
-import type { ToolHandler } from "../../src/core/runtime/tools.js";
+import type { ToolHandler } from "../../runtime/tools";
 
 const InputSchema = z.object({
   path: z.string().optional(),
@@ -26,7 +26,8 @@ function resolveInCwd(p: string): string {
   return abs;
 }
 
-export const toolHandler: ToolHandler = async (input) => {
+export const toolHandler: ToolHandler = async (input, _deps) => {
+  void _deps;
   const parsed = InputSchema.parse(input ?? {});
   const startRel = parsed.path?.trim() ? parsed.path.trim() : ".";
   const startAbs = resolveInCwd(startRel);
@@ -82,4 +83,3 @@ export const toolHandler: ToolHandler = async (input) => {
     truncated: out.length >= maxResults,
   };
 };
-

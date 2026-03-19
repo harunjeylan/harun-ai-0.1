@@ -1,15 +1,21 @@
-import { Agent, type AgentEvent, type AgentTool } from "@mariozechner/pi-agent-core";
+import {
+  Agent,
+  type AgentEvent,
+  type AgentTool,
+} from "@mariozechner/pi-agent-core";
 import { Type } from "@mariozechner/pi-ai";
 import chalk from "chalk";
 import {
   getProviderConfigForAgent,
   resolveModel,
-} from "../providers/provider-registry.js";
-import type { Planner, PlanResult } from "./planner.js";
-import type { Registry } from "./registry.js";
-import type { ToolRuntime } from "./runtime/tools.js";
-import type { WorkflowEngine } from "./workflow/engine.js";
-import { WorkerAgent } from "./worker.js";
+} from "../../providers/provider-registry";
+import type { Registry } from "../registry";
+import type { ToolRuntime } from "../runtime/tools";
+import type { WorkflowEngine } from "../workflow/engine";
+import type { Planner, PlanResult } from "./planner";
+import { WorkerAgent } from "./worker";
+
+export type AssistantEvent = AgentEvent;
 
 export class Assistant {
   private readonly agent: Agent;
@@ -83,20 +89,24 @@ export class Assistant {
     const tools: AgentTool[] = [];
 
     const toolNames = registry.listTools();
-    console.log('[DEBUG] Building tools:', toolNames);
-    
+
     for (const toolName of toolNames) {
       const toolSpec = registry.getTool(toolName);
       const inputSchema = toolSpec?.input_schema as any;
-      console.log('[DEBUG] Tool:', toolName, 'schema:', JSON.stringify(inputSchema));
-      
       tools.push({
         name: toolName,
-        label: toolName.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
+        label: toolName
+          .replace(/_/g, " ")
+          .replace(/\b\w/g, (c) => c.toUpperCase()),
         description: toolSpec?.description ?? `Execute ${toolName} tool.`,
         parameters: inputSchema ?? Type.Object({}),
         async execute(toolCallId, params) {
-          console.log('[DEBUG] Executing tool:', toolName, 'params:', JSON.stringify(params));
+          console.log(
+            "[DEBUG] Executing tool:",
+            toolName,
+            "params:",
+            JSON.stringify(params),
+          );
           try {
             await runtime.invoke(toolName, params as Record<string, unknown>);
             return {
@@ -104,7 +114,7 @@ export class Assistant {
               details: {},
             };
           } catch (err) {
-            console.error('[DEBUG] Tool error:', toolName, err);
+            console.error("[DEBUG] Tool error:", toolName, err);
             throw err;
           }
         },
@@ -134,11 +144,14 @@ export class Assistant {
     const messages: any[] | undefined = state?.messages;
     if (!Array.isArray(messages)) return undefined;
 
-    const lastAssistant = [...messages].reverse().find((m) => m?.role === "assistant");
+    const lastAssistant = [...messages]
+      .reverse()
+      .find((m) => m?.role === "assistant");
     if (!lastAssistant) return undefined;
 
     const content = lastAssistant?.content;
-    if (typeof content === "string") return content.trim().length > 0 ? content : undefined;
+    if (typeof content === "string")
+      return content.trim().length > 0 ? content : undefined;
 
     if (Array.isArray(content)) {
       const textParts = content
@@ -155,18 +168,17 @@ export class Assistant {
     return this.apiKey.trim().length > 0;
   }
 
-  async prompt(text: string) {
+  async prompt(text: string): Promise<{ content: string; error?: string }> {
     if (!this.hasApiKey()) {
-      process.stdout.write(
-        chalk.red(
-          `[assistant] Missing API key for provider "${this.provider}". Set it in providers/${this.provider}.json and retry.\n`,
-        ),
-      );
-      return;
+      return {
+        content: "",
+        error: `Missing API key for provider "${this.provider}". Set it in config/providers/${this.provider}.json`,
+      };
     }
 
-    let sawAnyDelta = false;
-    let sawDone = false;
+    let fullResponse = "";
+    let error: string | undefined;
+    let sawResponse = false;
 
     const unsubscribe = this.agent.subscribe((e) => {
       const anyEvent = e as any;
@@ -174,26 +186,24 @@ export class Assistant {
       if (anyEvent?.type === "message_update") {
         const ev = anyEvent.assistantMessageEvent;
         if (ev?.type === "text_delta") {
-          sawAnyDelta = true;
-          process.stdout.write(ev.delta);
+          sawResponse = true;
+          fullResponse += ev.delta;
         }
         if (ev?.type === "thinking_delta") {
-          sawAnyDelta = true;
-          process.stdout.write(chalk.gray(ev.delta));
+          sawResponse = true;
+          fullResponse += ev.delta;
         }
         if (ev?.type === "error") {
-          sawAnyDelta = true;
-          process.stdout.write(
-            chalk.red(
-              `\n[assistant error] ${ev.error?.errorMessage ?? "Unknown error"}\n`,
-            ),
-          );
-        }
-        if (ev?.type === "done") {
-          sawDone = true;
-          process.stdout.write("\n");
+          error = ev.error?.errorMessage ?? "Unknown streaming error";
         }
         return;
+      }
+
+      if (anyEvent?.type === "message_end") {
+        const msg = anyEvent?.message;
+        if (msg?.stopReason === "error" && msg?.errorMessage) {
+          error = msg.errorMessage;
+        }
       }
 
       if (
@@ -201,24 +211,18 @@ export class Assistant {
         anyEvent?.type === "agent_error" ||
         anyEvent?.type === "turn_error"
       ) {
-        sawAnyDelta = true;
-        const msg =
+        error =
           anyEvent?.error?.errorMessage ??
           anyEvent?.error?.message ??
           anyEvent?.message ??
           "Unknown error";
-        process.stdout.write(chalk.red(`\n[assistant error] ${msg}\n`));
       }
     });
 
     try {
       const timeoutMs = 45000;
       const timeout = setTimeout(() => {
-        process.stdout.write(
-          chalk.red(
-            `\n[assistant] Timed out after ${timeoutMs}ms. Check network/API key and try again.\n`,
-          ),
-        );
+        error = `Timed out after ${timeoutMs}ms. Check network/API key and try again.`;
         this.agent.abort();
       }, timeoutMs);
 
@@ -226,17 +230,10 @@ export class Assistant {
         await this.agent.prompt(text);
         await this.agent.waitForIdle();
 
-        if (!sawAnyDelta) {
+        if (!sawResponse && !error) {
           const text = this.getLastAssistantText();
           if (text && text.trim().length > 0) {
-            process.stdout.write(text);
-            if (!text.endsWith("\n")) process.stdout.write("\n");
-          } else if (!sawDone) {
-            process.stdout.write(
-              chalk.yellow(
-                `\n[assistant] No output received (provider=${this.provider}, model=${this.modelId}).\n`,
-              ),
-            );
+            fullResponse = text;
           }
         }
       } finally {
@@ -245,6 +242,8 @@ export class Assistant {
     } finally {
       unsubscribe();
     }
+
+    return { content: fullResponse, error };
   }
 
   async invokeWorker(workerName: string, task: string): Promise<unknown> {

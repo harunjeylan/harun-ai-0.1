@@ -1,4 +1,4 @@
-import type { WorkflowEngine } from "./workflow/engine.js";
+import type { WorkflowEngine } from "./workflow/engine";
 
 type Job = {
   workflowName: string;

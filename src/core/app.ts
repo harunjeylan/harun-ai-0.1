@@ -1,12 +1,13 @@
-import { createDefaultRegistry } from "../registry/default-registry.js";
-import { Assistant } from "../agents/assistant.js";
-import { Registry } from "./registry.js";
-import { createToolRuntime } from "./runtime/tools.js";
-import { createAgentRuntime } from "./runtime/agents.js";
-import { Scheduler } from "./scheduler.js";
-import { WorkflowEngine } from "./workflow/engine.js";
-import { Planner } from "./agents/planner.js";
-import { WorkerAgent } from "../agents/worker.js";
+import { createDefaultRegistry } from "../registry/default-registry";
+import { Assistant } from "./agents/assistant";
+import { Registry } from "./registry";
+import { createToolRuntime } from "./runtime/tools";
+import { createAgentRuntime } from "./runtime/agents";
+import { Scheduler } from "./scheduler";
+import { WorkflowEngine } from "./workflow/engine";
+import { Planner } from "./agents/planner";
+import { WorkerAgent } from "./agents/worker";
+import { SessionManager } from "../session/index";
 
 export type App = {
   registry: Registry;
@@ -14,6 +15,7 @@ export type App = {
   scheduler: Scheduler;
   assistant: Assistant;
   planner: Planner;
+  sessionManager: SessionManager;
 };
 
 export async function createApp(): Promise<App> {
@@ -42,5 +44,8 @@ export async function createApp(): Promise<App> {
   }
   assistant.setWorkers(workers);
 
-  return { registry, workflowEngine, scheduler, assistant, planner };
+  // Use static factory method to create session manager
+  const sessionManager = SessionManager.create(process.cwd());
+
+  return { registry, workflowEngine, scheduler, assistant, planner, sessionManager };
 }

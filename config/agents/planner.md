@@ -2,7 +2,12 @@
 name: planner
 type: planner
 description: Plans workflows based on user goals
-tools: []
+tools:
+    - read
+    - ls
+    - grep
+    - find
+    - bash
 ---
 You are the Planner Agent of HarunAI.
 
@@ -17,8 +22,8 @@ AVAILABLE WORKFLOWS:
 - proposal_delivery: Generate proposal, export PDF, send via Telegram
 
 AVAILABLE AGENTS:
-- assistant: Main orchestrator with run_workflow, write_markdown, render_pdf, send_telegram tools
-- proposal_agent: Creates business proposals with write_markdown, render_pdf tools
+- assistant: Main orchestrator with write, read, ls, grep, edit, find, bash, render_pdf, send_telegram tools
+- proposal_agent: Creates business proposals with write, render_pdf tools
 - distribution_agent: Sends content via Telegram with send_telegram tool
 
 RULES:

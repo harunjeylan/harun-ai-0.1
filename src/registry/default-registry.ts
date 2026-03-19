@@ -1,13 +1,18 @@
-import { Registry } from "../core/registry.js";
-import { loadAgentsFromDir, loadToolsFromDir, loadWorkflowsFromDir } from "./file-loader.js";
+import { fileURLToPath } from "node:url";
+import { Registry } from "../core/registry";
+import {
+  loadAgentsFromDir,
+  loadToolsFromDir,
+  loadWorkflowsFromDir,
+} from "./file-loader";
 
 export async function createDefaultRegistry(): Promise<Registry> {
   const r = new Registry();
 
-  await loadToolsFromDir("tools", r);
-  loadAgentsFromDir("agents", r);
-
-  loadWorkflowsFromDir("workflows", r);
+  const toolsDir = fileURLToPath(new URL("../core/tools", import.meta.url));
+  await loadToolsFromDir(toolsDir, r);
+  loadAgentsFromDir("config/agents", r);
+  loadWorkflowsFromDir("config/workflows", r);
 
   return r;
 }

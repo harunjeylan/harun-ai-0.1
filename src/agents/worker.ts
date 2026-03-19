@@ -1,1 +1,0 @@
-../../providers/provider-registry.js

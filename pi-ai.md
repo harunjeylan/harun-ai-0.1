@@ -916,13 +916,13 @@ const response = await complete(model, {
 ### Browser Compatibility Notes
 
 - Amazon Bedrock (`bedrock-converse-stream`) is not supported in browser environments.
-- OAuth login flows are not supported in browser environments. Use the `@mariozechner/pi-ai/oauth` entry point in Node.js.
+- OAuth login flows are not supported in browser environments. Use the `@mariozechner/pi-ai/oauth` entry point in Node.
 - In browser builds, Bedrock can still appear in model lists. Calls to Bedrock models fail at runtime.
 - Use a server-side proxy or backend service if you need Bedrock or OAuth-based auth from a web app.
 
-### Environment Variables (Node.js only)
+### Environment Variables (Node only)
 
-In Node.js environments, you can set environment variables to avoid passing API keys:
+In Node environments, you can set environment variables to avoid passing API keys:
 
 | Provider | Environment Variable(s) |
 |----------|------------------------|
@@ -1017,7 +1017,7 @@ export GOOGLE_CLOUD_PROJECT="my-project"
 export GOOGLE_CLOUD_LOCATION="us-central1"
 
 # CI/Production (service account key file)
-export GOOGLE_APPLICATION_CREDENTIALS="/path/to/service-account.json"
+export GOOGLE_APPLICATION_CREDENTIALS="/path/to/service-accounton"
 ```
 
 ```typescript
@@ -1049,7 +1049,7 @@ npx @mariozechner/pi-ai login anthropic    # login to specific provider
 npx @mariozechner/pi-ai list               # list available providers
 ```
 
-Credentials are saved to `auth.json` in the current directory.
+Credentials are saved to `authon` in the current directory.
 
 ### Programmatic OAuth
 
@@ -1093,7 +1093,7 @@ const credentials = await loginGitHubCopilot({
 
 // Store credentials yourself
 const auth = { 'github-copilot': { type: 'oauth', ...credentials } };
-writeFileSync('auth.json', JSON.stringify(auth, null, 2));
+writeFileSync('authon', JSON.stringify(auth, null, 2));
 ```
 
 ### Using OAuth Tokens
@@ -1106,7 +1106,7 @@ import { getOAuthApiKey } from '@mariozechner/pi-ai/oauth';
 import { readFileSync, writeFileSync } from 'fs';
 
 // Load your stored credentials
-const auth = JSON.parse(readFileSync('auth.json', 'utf-8'));
+const auth = JSON.parse(readFileSync('authon', 'utf-8'));
 
 // Get API key (refreshes if expired)
 const result = await getOAuthApiKey('github-copilot', auth);
@@ -1114,7 +1114,7 @@ if (!result) throw new Error('Not logged in');
 
 // Save refreshed credentials
 auth['github-copilot'] = { type: 'oauth', ...result.newCredentials };
-writeFileSync('auth.json', JSON.stringify(auth, null, 2));
+writeFileSync('authon', JSON.stringify(auth, null, 2));
 
 // Use the API key
 const model = getModel('github-copilot', 'gpt-4o');

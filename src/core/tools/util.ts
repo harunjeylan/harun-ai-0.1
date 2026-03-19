@@ -11,7 +11,7 @@ export function outputsDir(): string {
 }
 
 export function latestArtifactsPath(): string {
-  return join(outputsDir(), ".harunai-latest.json");
+  return join(outputsDir(), ".harunai-lateston");
 }
 
 export async function readLatestArtifacts(): Promise<LatestArtifacts> {
@@ -24,15 +24,24 @@ export async function readLatestArtifacts(): Promise<LatestArtifacts> {
   }
 }
 
-export async function writeLatestArtifacts(patch: LatestArtifacts): Promise<void> {
+export async function writeLatestArtifacts(
+  patch: LatestArtifacts,
+): Promise<void> {
   const dir = outputsDir();
   await mkdir(dir, { recursive: true });
   const cur = await readLatestArtifacts();
   const next: LatestArtifacts = { ...cur, ...patch };
-  await writeFile(latestArtifactsPath(), JSON.stringify(next, null, 2) + "\n", "utf8");
+  await writeFile(
+    latestArtifactsPath(),
+    JSON.stringify(next, null, 2) + "\n",
+    "utf8",
+  );
 }
 
-export async function findLatestByExt(dir: string, ext: string): Promise<string | null> {
+export async function findLatestByExt(
+  dir: string,
+  ext: string,
+): Promise<string | null> {
   const { readdir, stat } = await import("node:fs/promises");
   const entries = await readdir(dir);
   const files = entries
@@ -51,4 +60,3 @@ export async function findLatestByExt(dir: string, ext: string): Promise<string 
   }
   return latest;
 }
-

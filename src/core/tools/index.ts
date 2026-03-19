@@ -1,33 +1,24 @@
-import fs from "node:fs";
-import path from "node:path";
-import { pathToFileURL } from "node:url";
 import type { ToolDeps, ToolHandler } from "../runtime/tools.js";
+import { toolHandler as readHandler } from "./read/index.js";
+import { toolHandler as writeHandler } from "./write/index.js";
+import { toolHandler as editHandler } from "./edit/index.js";
+import { toolHandler as bashHandler } from "./bash/index.js";
+import { toolHandler as findHandler } from "./find/index.js";
+import { toolHandler as grepHandler } from "./grep/index.js";
+import { toolHandler as lsHandler } from "./ls/index.js";
+import { toolHandler as renderPdfHandler } from "./render_pdf/index.js";
+import { toolHandler as sendTelegramHandler } from "./send_telegram/index.js";
 
-export function createTools(deps: ToolDeps): Record<string, ToolHandler> {
-  const toolsDir = path.join(process.cwd(), "tools");
-  const handlers: Record<string, ToolHandler> = {};
-
-  if (!fs.existsSync(toolsDir)) return handlers;
-
-  const entries = fs.readdirSync(toolsDir, { withFileTypes: true });
-  for (const e of entries) {
-    if (!e.isDirectory()) continue;
-    if (e.name === "tool-template") continue;
-
-    const indexPath = path.join(toolsDir, e.name, "index.ts");
-    if (!fs.existsSync(indexPath)) continue;
-
-    // NOTE: dynamic import is async, but ToolRuntime expects sync creation.
-    // Bun supports synchronous require-like import() only as Promise, so we precompute a lazy handler.
-    // This keeps behavior deterministic without a big refactor.
-    const toolName = e.name;
-    handlers[toolName] = async (input) => {
-      const mod = (await import(pathToFileURL(indexPath).href)) as any;
-      const handler = mod.toolHandler as ToolHandler | undefined;
-      if (!handler) throw new Error(`Tool handler missing: ${toolName}`);
-      return await handler(input, deps);
-    };
-  }
-
-  return handlers;
+export function createTools(_deps: ToolDeps): Record<string, ToolHandler> {
+  return {
+    read: readHandler as unknown as ToolHandler,
+    write: writeHandler as unknown as ToolHandler,
+    edit: editHandler as unknown as ToolHandler,
+    bash: bashHandler as unknown as ToolHandler,
+    find: findHandler as unknown as ToolHandler,
+    grep: grepHandler as unknown as ToolHandler,
+    ls: lsHandler as unknown as ToolHandler,
+    render_pdf: renderPdfHandler,
+    send_telegram: sendTelegramHandler,
+  };
 }

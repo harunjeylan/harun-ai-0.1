@@ -1,9 +1,8 @@
 {
   "agents": {
-    "assistant": { "provider": "openrouter", "modelId": "deepseek/deepseek-chat-v3.1" },
-    "planner": { "provider": "openrouter", "modelId": "deepseek/deepseek-chat-v3.1" },
-    "proposal_agent": { "provider": "openrouter", "modelId": "deepseek/deepseek-chat-v3.1" },
-    "distribution_agent": { "provider": "openrouter", "modelId": "deepseek/deepseek-chat-v3.1" }
+    "assistant": { "provider": "opencode", "modelId": "kimi-k2.5" },
+    "planner": { "provider": "opencode", "modelId": "kimi-k2.5" },
+    "proposal_agent": { "provider": "opencode", "modelId": "kimi-k2.5" },
+    "distribution_agent": { "provider": "opencode", "modelId": "kimi-k2.5" }
   }
 }
-

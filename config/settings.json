@@ -1,0 +1,10 @@
+{
+  "compaction": {
+    "enabled": true,
+    "contextWindow": 8192,
+    "reserveTokens": 2048,
+    "keepRecentTokens": 4000,
+    "triggerThreshold": 0.75,
+    "verbose": false
+  }
+}

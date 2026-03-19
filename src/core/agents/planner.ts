@@ -2,13 +2,13 @@ import { Agent } from "@mariozechner/pi-agent-core";
 import {
   getProviderConfigForAgent,
   resolveModel,
-} from "../../providers/provider-registry.js";
+} from "../../providers/provider-registry";
 import type {
   AgentSpec,
   Registry,
   WorkflowSpec,
   WorkflowStep,
-} from "../registry.js";
+} from "../registry";
 
 export type PlanResult =
   | { type: "use_existing"; workflowName: string; workflow: WorkflowSpec }

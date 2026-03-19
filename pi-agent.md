@@ -78,7 +78,7 @@ prompt("Hello")
 If the assistant calls tools, the loop continues:
 
 ```
-prompt("Read config.json")
+prompt("Read configon")
 ├─ agent_start
 ├─ turn_start
 ├─ message_start/end  { userMessage }

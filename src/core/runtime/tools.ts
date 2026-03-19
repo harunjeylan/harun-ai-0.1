@@ -1,11 +1,13 @@
-import { createTools } from "../tools/index.js";
-import type { Registry } from "../registry.js";
 import type { Planner } from "../agents/planner.js";
+import type { Registry } from "../registry.js";
+import { createTools } from "../tools/index.js";
 
 export type ToolInvokeInput = Record<string, unknown>;
+
 export type ToolDeps = {
   planner: Planner;
   registry: Registry;
+  cwd?: string;
 };
 
 export type ToolHandler = (
@@ -20,8 +22,9 @@ export type ToolRuntime = {
 export function createToolRuntime(
   registry: Registry,
   deps: { planner: Planner },
+  cwd?: string,
 ): ToolRuntime {
-  const toolDeps: ToolDeps = { planner: deps.planner, registry };
+  const toolDeps: ToolDeps = { planner: deps.planner, registry, cwd };
   const handlers = createTools(toolDeps);
 
   return {
