@@ -1007,12 +1007,104 @@ export class HarunTUI {
   }
 
   private async compactSession(): Promise<void> {
-    this.addMessage({
-      id: `msg_${Date.now()}_compact`,
-      role: "system",
-      content: "Session compaction is not yet implemented.",
-      timestamp: Date.now(),
-    });
+    const entries = this.app.sessionManager.getEntries();
+    const usage = {
+      tokens: 0,
+      windowSize: 8192,
+      percentage: 0,
+      needsCompaction: false,
+    };
+
+    // Get context usage without creating engine (check if needed)
+    try {
+      const { createCompactionEngineWithLLM } = await import("../session/compaction");
+      const { resolveModel } = await import("../providers/provider-registry");
+      const { getProviderConfigForAgent } = await import("../providers/provider-registry");
+
+      const providerConfig = getProviderConfigForAgent("assistant");
+      const model = resolveModel(providerConfig);
+
+      const engine = await createCompactionEngineWithLLM(
+        providerConfig.apiKey,
+        model
+      );
+
+      const contextUsage = engine.getContextUsage(entries);
+      Object.assign(usage, contextUsage);
+
+      if (!contextUsage.needsCompaction) {
+        this.addMessage({
+          id: `msg_${Date.now()}_compact`,
+          role: "system",
+          content: `Context usage: ${contextUsage.percentage}% - compaction not needed yet.`,
+          timestamp: Date.now(),
+        });
+        this.tui.requestRender();
+        return;
+      }
+
+      // Show loading indicator
+      this.addMessage({
+        id: `msg_${Date.now()}_compact`,
+        role: "system",
+        content: `Compacting context... (${contextUsage.tokens}/${contextUsage.windowSize} tokens)`,
+        timestamp: Date.now(),
+      });
+      this.tui.requestRender();
+
+      // Get previous summary if exists
+      let previousSummary: string | undefined;
+      const compactionEntries = entries.filter((e) => e.type === "compaction");
+      if (compactionEntries.length > 0) {
+        const lastCompaction = compactionEntries[compactionEntries.length - 1];
+        if (lastCompaction.type === "compaction") {
+          previousSummary = lastCompaction.content;
+        }
+      }
+
+      // Perform compaction
+      const result = await engine.compactAsync(entries, previousSummary);
+
+      if (!result.didCompact) {
+        this.addMessage({
+          id: `msg_${Date.now()}_compact`,
+          role: "system",
+          content: "No entries to compact.",
+          timestamp: Date.now(),
+        });
+      } else {
+        // Append compaction entry to session
+        if (result.entry) {
+          this.app.sessionManager.appendMessage({
+            role: "system",
+            content: `--- COMPACTED ---`,
+          });
+
+          this.addMessage({
+            id: `msg_${Date.now()}_compact`,
+            role: "system",
+            content: [
+              `Compacted ${result.entriesCompacted} entries.`,
+              `Tokens: ${result.tokensSaved} saved`,
+              result.usedLlm ? "(summarized with LLM)" : "(simple summary)",
+              "",
+              "Summary:",
+              result.entry.content,
+            ].join("\n"),
+            timestamp: Date.now(),
+          });
+        }
+      }
+    } catch (err) {
+      this.addMessage({
+        id: `msg_${Date.now()}_compact`,
+        role: "system",
+        content: `Compaction failed: ${err instanceof Error ? err.message : String(err)}`,
+        timestamp: Date.now(),
+      });
+    }
+
+    this.tui.requestRender();
   }
 
   private async reloadConfigs(): Promise<void> {

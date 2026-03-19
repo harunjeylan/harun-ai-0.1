@@ -35,5 +35,13 @@ export {
 export {
   CompactionEngine,
   createCompactionEngine,
+  createCompactionEngineWithLLM,
   type CompactionResult,
+  type LLMConfig,
 } from "./engine";
+
+export {
+  SUMMARIZATION_PROMPT,
+  UPDATE_SUMMARIZATION_PROMPT,
+  SUMMARIZATION_SYSTEM_PROMPT,
+} from "./prompts";
