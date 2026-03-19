@@ -28,6 +28,7 @@ import type { App } from "../core/app";
 import { SessionManagerFactory } from "../session/factory";
 import type { SessionInfo } from "../session/types";
 import { StreamingMessageComponent } from "./streaming-message";
+import { ToolExecutionComponent } from "./tool-execution";
 
 const SESSIONS_DIR = join(homedir(), ".harunai", "sessions");
 
@@ -317,6 +318,7 @@ export class HarunTUI {
   private streamingComponent: StreamingMessageComponent | undefined;
   private loadingAnimation: Loader | undefined;
   private unsubscribeAgent: (() => void) | undefined;
+  private pendingTools = new Map<string, ToolExecutionComponent>();
 
   constructor(app: App) {
     this.app = app;
@@ -361,6 +363,28 @@ export class HarunTUI {
     this.unsubscribeAgent = this.app.assistant.subscribe((event: any) =>
       this.handleAgentEvent(event),
     );
+
+    // Add global input listener for Escape key (abort)
+    this.tui.addInputListener((data) => {
+      if (matchesKey(data, Key.escape)) {
+        if (this.loadingAnimation || this.streamingComponent || this.pendingTools.size > 0) {
+          this.app.assistant.abort();
+          this.showLoading(false);
+          if (this.streamingComponent) {
+            const content = this.streamingComponent.getContent();
+            const thinking = this.streamingComponent.getThinking();
+            if (content.trim() || thinking.trim()) {
+              this.finalizeStreamingMessage(content, "Aborted");
+            } else {
+              this.chatContainer.removeChild(this.streamingComponent);
+              this.streamingComponent = undefined;
+            }
+          }
+          this.tui.requestRender();
+          return { consume: true };
+        }
+      }
+    });
 
     // CRITICAL: Set focus on the editor so it can receive keyboard input
     this.tui.setFocus(this.editor);
@@ -498,14 +522,54 @@ export class HarunTUI {
 
       case "message_update":
         if (this.streamingComponent && event.message?.role === "assistant") {
-          // Get the delta from assistantMessageEvent, not the full message
           const ev = event.assistantMessageEvent;
           if (ev?.type === "text_delta" && ev.delta) {
             this.streamingComponent.appendText(ev.delta);
           }
+          if (ev?.type === "thinking_delta" && ev.delta) {
+            this.streamingComponent.appendThinking(ev.delta);
+          }
           this.tui.requestRender();
         }
         break;
+
+      case "tool_execution_start": {
+        const toolComponent = new ToolExecutionComponent(
+          event.toolName,
+          event.args,
+          markdownTheme,
+        );
+        this.pendingTools.set(event.toolCallId, toolComponent);
+        this.chatContainer.addChild(toolComponent);
+        this.chatContainer.addChild(new Spacer(1));
+        this.tui.requestRender();
+        break;
+      }
+
+      case "tool_execution_update": {
+        const toolComponent = this.pendingTools.get(event.toolCallId);
+        if (toolComponent) {
+          toolComponent.updateArgs(event.args);
+          toolComponent.updateResult(event.partialResult, true);
+          this.tui.requestRender();
+        }
+        break;
+      }
+
+      case "tool_execution_end": {
+        const toolComponent = this.pendingTools.get(event.toolCallId);
+        if (toolComponent) {
+          toolComponent.updateResult(event.result, false);
+          if (event.isError) {
+            toolComponent.setState("error");
+          } else {
+            toolComponent.setState("success");
+          }
+          this.pendingTools.delete(event.toolCallId);
+          this.tui.requestRender();
+        }
+        break;
+      }
 
       case "message_end":
         if (this.streamingComponent && event.message?.role === "assistant") {
