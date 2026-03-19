@@ -1,4 +1,14 @@
 {
+  "$schema": "./settings.schema.json",
+  "model": {
+    "provider": "google",
+    "modelId": "gemini-2.0-flash"
+  },
+  "ui": {
+    "theme": "dark",
+    "showThinking": true,
+    "streaming": true
+  },
   "compaction": {
     "enabled": true,
     "contextWindow": 8192,
@@ -6,5 +16,8 @@
     "keepRecentTokens": 4000,
     "triggerThreshold": 0.75,
     "verbose": false
+  },
+  "keybindings": {
+    "abort": "escape"
   }
 }

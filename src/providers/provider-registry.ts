@@ -1,4 +1,6 @@
 import fs from "node:fs";
+import path from "node:path";
+import { homedir } from "os";
 import { z } from "zod";
 import { getModel, type Model } from "@mariozechner/pi-ai";
 
@@ -35,6 +37,10 @@ const AgentsFileSchema = z.object({
 });
 type AgentsFile = z.infer<typeof AgentsFileSchema>;
 
+const APP_CONFIG_DIR = "config";
+const GLOBAL_CONFIG_DIR = path.join(homedir(), ".harunai");
+const PROJECT_CONFIG_DIR = ".harunai";
+
 const jsonCache = new Map<string, unknown | null>();
 
 function loadJsonFile<T>(filePath: string, schema: z.ZodSchema<T>): T | null {
@@ -61,16 +67,65 @@ function loadJsonFile<T>(filePath: string, schema: z.ZodSchema<T>): T | null {
   return result.data;
 }
 
+function loadDefaultsHierarchical(): DefaultsFile | null {
+  // Load from project -> global -> default (project has highest priority)
+  const paths = [
+    path.join(PROJECT_CONFIG_DIR, "providers", "defaults.json"),
+    path.join(GLOBAL_CONFIG_DIR, "providers", "defaults.json"),
+    path.join(APP_CONFIG_DIR, "providers", "defaults.json"),
+  ];
+
+  for (const filePath of paths) {
+    if (fs.existsSync(filePath)) {
+      return loadJsonFile(filePath, DefaultsFileSchema);
+    }
+  }
+
+  return null;
+}
+
+function loadAgentsHierarchical(): AgentsFile | null {
+  const paths = [
+    path.join(PROJECT_CONFIG_DIR, "providers", "agents.json"),
+    path.join(GLOBAL_CONFIG_DIR, "providers", "agents.json"),
+    path.join(APP_CONFIG_DIR, "providers", "agents.json"),
+  ];
+
+  for (const filePath of paths) {
+    if (fs.existsSync(filePath)) {
+      return loadJsonFile(filePath, AgentsFileSchema);
+    }
+  }
+
+  return null;
+}
+
+function loadProviderHierarchical(provider: string): ProviderFile | null {
+  const paths = [
+    path.join(PROJECT_CONFIG_DIR, "providers", `${provider}.json`),
+    path.join(GLOBAL_CONFIG_DIR, "providers", `${provider}.json`),
+    path.join(APP_CONFIG_DIR, "providers", `${provider}.json`),
+  ];
+
+  for (const filePath of paths) {
+    if (fs.existsSync(filePath)) {
+      return loadJsonFile(filePath, ProviderFileSchema);
+    }
+  }
+
+  return null;
+}
+
 function loadDefaults(): DefaultsFile | null {
-  return loadJsonFile("config/providers/defaults.json", DefaultsFileSchema);
+  return loadDefaultsHierarchical();
 }
 
 function loadAgents(): AgentsFile | null {
-  return loadJsonFile("config/providers/agent.json", AgentsFileSchema);
+  return loadAgentsHierarchical();
 }
 
 function loadProvider(provider: string): ProviderFile | null {
-  return loadJsonFile(`config/providers/${provider}.json`, ProviderFileSchema);
+  return loadProviderHierarchical(provider);
 }
 
 function pickApiKey(
@@ -83,7 +138,7 @@ export function getProviderConfigForAgent(agentName: string): ProviderConfig {
   const defaultsFile = loadDefaults();
   if (!defaultsFile) {
     throw new Error(
-      "Missing required config file: config/providers/defaults.json",
+      "Missing required config file: config/providers/defaults.json (or ~/.harunai/providers/defaults.json)",
     );
   }
 
