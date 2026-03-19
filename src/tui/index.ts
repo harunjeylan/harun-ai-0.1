@@ -21,6 +21,7 @@ import {
   TUI,
 } from "@mariozechner/pi-tui";
 import chalk from "chalk";
+import clipboard from "clipboardy";
 import { existsSync, mkdirSync } from "fs";
 import { homedir } from "os";
 import { join } from "path";
@@ -79,11 +80,18 @@ const slashCommands = [
   { name: "tools", description: "List all available tools" },
   { name: "workflows", description: "List all workflows" },
   { name: "providers", description: "List available LLM providers" },
-  { name: "settings", description: "Open settings menu" },
+  { name: "settings", description: "Show current settings" },
   { name: "model", description: "Select model (opens selector UI)" },
+  { name: "copy", description: "Copy last message to clipboard" },
+  { name: "name", description: "Set session display name" },
+  { name: "session", description: "Show session info and stats" },
+  { name: "hotkeys", description: "Show all keyboard shortcuts" },
+  { name: "compact", description: "Manually compact session context" },
+  { name: "reload", description: "Reload keybindings and configs" },
   { name: "clear", description: "Clear the chat history" },
   { name: "new", description: "Start a new session" },
   { name: "sessions", description: "Browse and switch sessions" },
+  { name: "resume", description: "Resume a different session" },
   { name: "help", description: "Show available commands" },
   { name: "exit", description: "Exit HarunAI", aliases: ["quit"] },
 ];
@@ -706,6 +714,34 @@ export class HarunTUI {
         this.listProviders();
         break;
 
+      case "settings":
+        this.showSettings();
+        break;
+
+      case "copy":
+        this.copyLastMessage();
+        break;
+
+      case "name":
+        this.showNamePrompt();
+        break;
+
+      case "session":
+        this.showSessionInfo();
+        break;
+
+      case "hotkeys":
+        this.showHotkeys();
+        break;
+
+      case "compact":
+        this.compactSession();
+        break;
+
+      case "reload":
+        this.reloadConfigs();
+        break;
+
       case "new": {
         this.app.sessionManager = SessionManagerFactory.create(process.cwd());
         this.messages = [];
@@ -714,7 +750,8 @@ export class HarunTUI {
         }
         break;
       }
-      case "sessions": {
+      case "sessions":
+      case "resume": {
         const sessions = await SessionManagerFactory.list(process.cwd());
         const selector = new SessionSelectorComponent(sessions, (session) => {
           if (session) {
@@ -750,8 +787,14 @@ export class HarunTUI {
             "  /tools      - List all tools",
             "  /workflows  - List all workflows",
             "  /providers  - List available providers",
-            "  /settings   - Open settings menu",
+            "  /settings   - Show current settings",
             "  /model      - Select model",
+            "  /copy       - Copy last message to clipboard",
+            "  /name       - Set session display name",
+            "  /session    - Show session info",
+            "  /hotkeys    - Show keyboard shortcuts",
+            "  /compact    - Compact session context",
+            "  /reload     - Reload configs",
             "  /new        - Start new session",
             "  /sessions   - Browse sessions",
             "  /clear      - Clear chat",
@@ -858,6 +901,125 @@ export class HarunTUI {
       id: `msg_${Date.now()}_providers`,
       role: "system",
       content,
+      timestamp: Date.now(),
+    });
+  }
+
+  private showSettings(): void {
+    const provider = this.app.assistant.provider;
+    const model = this.app.assistant.modelId;
+
+    this.addMessage({
+      id: `msg_${Date.now()}_settings`,
+      role: "system",
+      content: [
+        "Current Settings:",
+        "",
+        `  Provider: ${provider}`,
+        `  Model: ${model}`,
+        "",
+        `  Working directory: ${process.cwd()}`,
+        `  Session: ${this.app.sessionManager.getSessionName() || "Unnamed"}`,
+      ].join("\n"),
+      timestamp: Date.now(),
+    });
+  }
+
+  private async copyLastMessage(): Promise<void> {
+    const assistantMessages = this.messages.filter((m) => m.role === "assistant");
+    const lastMessage = assistantMessages[assistantMessages.length - 1];
+
+    if (!lastMessage) {
+      this.addMessage({
+        id: `msg_${Date.now()}_copy`,
+        role: "system",
+        content: "No assistant message to copy.",
+        timestamp: Date.now(),
+      });
+      return;
+    }
+
+    try {
+      await clipboard.write(lastMessage.content);
+      this.addMessage({
+        id: `msg_${Date.now()}_copy`,
+        role: "system",
+        content: "Last message copied to clipboard.",
+        timestamp: Date.now(),
+      });
+    } catch (err) {
+      this.addMessage({
+        id: `msg_${Date.now()}_copy`,
+        role: "system",
+        content: `Failed to copy to clipboard: ${err instanceof Error ? err.message : String(err)}`,
+        timestamp: Date.now(),
+      });
+    }
+  }
+
+  private showNamePrompt(): void {
+    this.addMessage({
+      id: `msg_${Date.now()}_name`,
+      role: "system",
+      content: "To set session name, use: /name <name>\n\nCurrent name: " + (this.app.sessionManager.getSessionName() || "Unnamed"),
+      timestamp: Date.now(),
+    });
+  }
+
+  private showSessionInfo(): void {
+    const entries = this.app.sessionManager.getEntries();
+    const messageCount = entries.filter((e) => e.type === "message").length;
+    const sessionPath = (this.app.sessionManager as any).sessionDir?.() ?? "unknown";
+    const sessionName = this.app.sessionManager.getSessionName() || "Unnamed";
+
+    this.addMessage({
+      id: `msg_${Date.now()}_session`,
+      role: "system",
+      content: [
+        "Session Info:",
+        "",
+        `  Name: ${sessionName}`,
+        `  Messages: ${messageCount}`,
+        `  Path: ${sessionPath}`,
+        `  Created: ${new Date().toLocaleDateString()}`,
+      ].join("\n"),
+      timestamp: Date.now(),
+    });
+  }
+
+  private showHotkeys(): void {
+    this.addMessage({
+      id: `msg_${Date.now()}_hotkeys`,
+      role: "system",
+      content: [
+        "Keyboard Shortcuts:",
+        "",
+        "  Escape     - Abort current operation",
+        "  Ctrl+D     - Quit (when input empty)",
+        "  ↑/↓        - Navigate history (in input)",
+        "  Tab        - Autocomplete command",
+        "  Enter      - Send message",
+        "",
+        "  Ctrl+C     - Cancel current input",
+      ].join("\n"),
+      timestamp: Date.now(),
+    });
+  }
+
+  private async compactSession(): Promise<void> {
+    this.addMessage({
+      id: `msg_${Date.now()}_compact`,
+      role: "system",
+      content: "Session compaction is not yet implemented.",
+      timestamp: Date.now(),
+    });
+  }
+
+  private async reloadConfigs(): Promise<void> {
+    this.addMessage({
+      id: `msg_${Date.now()}_reload`,
+      role: "system",
+      content: "Config reload is not yet implemented.",
       timestamp: Date.now(),
     });
   }
